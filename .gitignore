@@ -1,0 +1,9 @@
+.DS_Store
+.idea
+.vscode
+.fleet
+node_modules
+dist
+temp
+build
+projects/quick-demo-react

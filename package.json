@@ -1,0 +1,61 @@
+{
+  "name": "agora-rtc-web",
+  "version": "4.18.2",
+  "description": "Agora WebRTC SDK",
+  "type": "module",
+  "packageManager": "pnpm@8.6.4",
+  "private": true,
+  "scripts": {
+    "vue": "pnpm -F=./projects/quick-demo-vue dev",
+    "svelte": "pnpm -F=./projects/quick-demo-svelte dev",
+    "react": "pnpm -F=./projects/quick-demo-react dev",
+    "build:vue": "pnpm -F=./projects/quick-demo-vue build",
+    "build:svelte": "pnpm -F=./projects/quick-demo-svelte build",
+    "build:react": "pnpm -F=./projects/quick-demo-react build",
+    "live-video": "pnpm -F=./projects/quick-demo-live-video dev"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "pnpm run precommit"
+    }
+  },
+  "engines": {
+    "node": ">=16.14.2",
+    "pnpm": ">=8.6.4"
+  },
+  "keywords": [
+    "Agora",
+    "WebRTC",
+    "SDK"
+  ],
+  "author": "AgoraWebRTCTeam",
+  "license": "Apache-2.0",
+  "dependencies": {
+    "agora-rtc-sdk-ng": "^4.19.0-rc.21"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.21.3",
+    "@babel/plugin-proposal-class-properties": "^7.18.6",
+    "@babel/plugin-proposal-decorators": "^7.22.5",
+    "@babel/plugin-transform-private-methods": "^7.22.5",
+    "@babel/plugin-transform-private-property-in-object": "^7.22.5",
+    "@babel/plugin-transform-runtime": "^7.22.5",
+    "@babel/preset-env": "^7.22.5",
+    "@babel/preset-typescript": "^7.22.5",
+    "@babel/runtime-corejs3": "^7.22.5",
+    "@babel/types": "^7.21.3",
+    "@microsoft/api-extractor": "^7.36.0",
+    "@rollup/plugin-babel": "^6.0.3",
+    "@rollup/plugin-commonjs": "^25.0.0",
+    "@rollup/plugin-json": "^6.0.0",
+    "@rollup/plugin-node-resolve": "^15.0.2",
+    "@rollup/plugin-replace": "^5.0.2",
+    "@rollup/plugin-terser": "^0.4.1",
+    "@rollup/plugin-typescript": "^11.1.2",
+    "@types/node": "^18.17.0",
+    "rollup": "^3.23.1",
+    "rollup-plugin-license": "^3.0.1",
+    "rollup-plugin-typescript2": "0.34.1",
+    "tsx": "^3.12.7"
+  }
+}

@@ -1,0 +1,28 @@
+{
+	"name": "@agora-rtc/live-video",
+	"version": "4.18.2",
+	"description": "the live-video module of agora rtc",
+	"main": "rtc-live-video.js",
+	"module": "rtc-live-video.esm.mjs",
+	"types": "rtc-sdk-live-video_en.d.ts",
+	"declaration": true,
+	"author": "Agora WebRTC Team",
+	"keywords": [
+		"WebRTC",
+		"live-video",
+		"agora-js",
+		"agora-js/live-video"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AgoraIO/agora-rtc-web.git"
+	},
+	"bugs": {
+		"url": "https://github.com/AgoraIO/agora-rtc-web/issues"
+	},
+	"homepage": "https://github.com/AgoraIO/agora-rtc-web",
+	"dependencies": {
+		"agora-rtc-sdk-ng": "workspace:*"
+	}
+}

@@ -1,0 +1,5 @@
+packages:
+  - "packages/*"
+  - "plugins/*"
+  - "projects/*"
+  - "!projects/quick-demo-react"

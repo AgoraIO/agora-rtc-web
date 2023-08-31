@@ -1,0 +1,16 @@
+{
+  "name": "agora-rtc-sdk-ng",
+  "version": "4.18.2",
+  "description": "",
+  "keywords": [],
+  "main": "AgoraRTC_N-production.js",
+  "module": "AgoraRTC_N-production.esm.js",
+  "typings": "rtc-sdk_en.d.ts",
+  "declaration": true,
+  "declarationMap": true,
+  "author": "agora",
+  "license": "MIT",
+  "dependencies": {
+    "agora-rte-extension": "^1.2.3"
+  }
+}
