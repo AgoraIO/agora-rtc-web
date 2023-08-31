@@ -30,12 +30,25 @@
       host id: {{ hostId }} <br />
       host change state: {{ hostChangeState }} <br />
       host state: {{ hostUserState }} <br />
+
+      <div class="volume">
+        <div class="inner" :style="{ width: `${volume}%` }"></div>
+      </div>
+      <div class="volume-input">
+        <input
+          class="rang-input"
+          type="range"
+          max="100"
+          min="0"
+          v-model="maxVolume"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from "vue";
+import { onBeforeUnmount, ref, watch } from "vue";
 import {
   LiveVideoPlayer,
   LiveVideoEvent,
@@ -65,6 +78,9 @@ const isStopped = ref(false);
 const isWaiting = ref(false);
 
 const isAutoplayFailed = ref(false);
+
+const volume = ref(0);
+const maxVolume = ref(100);
 
 let player: LiveVideoPlayer;
 
@@ -164,7 +180,38 @@ function onUserStateChanged(data: {
   if (data.isHost) {
     hostUserState.value =
       data.state + (data.mediaType ? `:${data.mediaType}` : "");
+
+    if (data.mediaType === "audio") {
+      if (data.state === "published") {
+        detectVolume();
+      } else {
+        stopDetectVolume();
+      }
+    }
   }
+}
+
+watch(maxVolume, (value) => {
+  player && player.setVolume(value / 100);
+});
+
+let volumeTimer: number;
+
+function detectVolume() {
+  if (volumeTimer) {
+    stopDetectVolume();
+  }
+
+  volumeTimer = setInterval(() => {
+    if (player) {
+      volume.value = player.getVolume() * 100;
+    }
+  }, 300);
+}
+
+function stopDetectVolume() {
+  clearInterval(volumeTimer);
+  volumeTimer = null;
 }
 
 function onVideoStateChanged(state: MediaState) {

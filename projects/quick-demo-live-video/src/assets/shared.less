@@ -84,4 +84,56 @@ button:active {
     color: #333;
     background-color: #efefef;
   }
+
+  .volume {
+    margin-top: 36px;
+    width: 200px;
+    height: 12px;
+    border-radius: 6px;
+    background-color: #bbbbbb;
+    .inner {
+      height: 100%;
+      background-color: #079eff;
+      border-radius: 6px;
+      transition: width ease-in-out 250ms;
+    }
+    
+  }
+
+  .volume-input {
+    margin-top: 24px;
+    width: 200px;
+    height: 12px;
+    border-radius: 6px;
+    .rang-input {
+      width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    [type="range"] {
+      appearance: none;
+      margin: 0;
+      border: none;
+      background-color: transparent;
+    }
+    [type="range"]::-webkit-slider-runnable-track {
+        height: 4px;
+        background: #bbbbbb;
+    }
+    [type="range" i]::-webkit-slider-container {
+        height: 20px;
+        overflow: hidden;
+    }
+    [type="range"]::-webkit-slider-thumb {
+        appearance: none;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background-color: #079eff;
+        border: 1px solid transparent;
+        margin-top: -8px;
+        border-image: linear-gradient(#079eff,#079eff) 0 fill / 8 20 8 0 / 0px 0px 0 2000px;
+    }
+  }
 }

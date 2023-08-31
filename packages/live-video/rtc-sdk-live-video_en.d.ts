@@ -27,6 +27,8 @@ declare class BaseLiveVideoPlayer extends EventEmitter<LiveVideoEvent> {
     private join;
     private reset;
     private recreate;
+    setVolume(volume: number): number;
+    getVolume(): number;
     protected playAudio(): Promise<void>;
     protected playVideo(): Promise<void>;
     private pauseAudio;

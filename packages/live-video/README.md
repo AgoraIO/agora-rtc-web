@@ -147,6 +147,32 @@ async function stop() {
 调用该方法会停止订阅主播流。 \
 再次 play 的时候，其耗时比暂停播放会更长，因为会重新订阅，创建媒体传输通道等。
 
+## 设置音量
+
+```ts
+async function setVolume(volume: number) {
+  if (!player) return;
+
+  player.setVolume(volume);
+}
+```
+
+仅仅当前有音频的时候调用生效，此时返回值设置的音量，范围为 0 - 1。 \
+如果当前没有音频，则返回 -1。
+
+## 获取音量
+
+```ts
+async function getVolume() {
+  if (!player) return;
+
+  const volume = player.getVolume();
+}
+```
+
+返回值为当前音量，范围为 0 - 1，会随着对方说活音量的变化而变化。\
+如果当前没有音频，则返回 -1。
+
 ## 重试
 
 ```ts
