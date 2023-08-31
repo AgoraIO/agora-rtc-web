@@ -80,6 +80,7 @@ async function turnOnMicrophone() {
 }
 
 const channel = ref("");
+// you can apply appid follow the guide https://www.agora.io/en/blog/how-to-get-started-with-agora/
 const APP_ID = "xxxx*****************xxxx";
 
 async function joinChannel() {

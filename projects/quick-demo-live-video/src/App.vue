@@ -45,12 +45,9 @@ import {
 } from "@agora-rtc/live-video";
 import type { IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
 
-// import VConsole from "vconsole";
-
-// new VConsole();
-
 const url = ref(
   localStorage.getItem("url") ||
+    // you can apply appid follow the guide https://www.agora.io/en/blog/how-to-get-started-with-agora/
     "rte://*******appid*******/appname/stream_name?token=null&uid=null"
 );
 
