@@ -1,0 +1,76 @@
+#root {
+  display: flex;
+}
+
+button {
+  min-width: 130px;
+  border-radius: 8px;
+  border: 1px solid #1a1a1a;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  background-color: #f9f9f9;
+  cursor: pointer;
+  transition: border-color 0.25s;
+}
+
+input {
+  border-radius: 8px;
+  border: 1px solid #1a1a1a;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  transition: border-color 0.25s;
+}
+
+button:hover {
+  background-color: #dddddd;
+}
+button:active {
+  background-color: #cccccc;
+}
+
+#root .left-side {
+  margin: 10px;
+  padding: 10px;
+}
+
+#root .right-side .waiting {
+  margin: 10px;
+  padding: 10px;
+  display: flex;
+}
+#root .right-side {
+  display: flex;
+  margin: 10px;
+  padding: 10px;
+  flex-wrap: wrap;
+}
+
+#root button,
+#root input {
+  margin: 10px;
+  padding: 10px;
+}
+
+#root h3 {
+  padding: 0 10px;
+}
+
+#root .button-on {
+  background-color: rgb(7, 158, 255);
+  color: white;
+}
+
+#root .right-side video {
+  height: 300px !important;
+  max-width: 400px;
+  margin: 10px;
+  border-radius: 4px;
+  aspect-ratio: 16/9;
+}
+
+#camera-video {
+}
