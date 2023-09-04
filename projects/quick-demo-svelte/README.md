@@ -8,13 +8,13 @@ install dependencies
 pnpm i
 ```
 
-run LiveVideo demo
+run svelte quick start demo
 
 ```bash
 pnpm run svelte
 ```
 
-build LiveVideo demo
+build svelte quick start demo
 
 ```bash
 pnpm run build:svelte

@@ -8,13 +8,13 @@ install dependencies
 pnpm i
 ```
 
-run LiveVideo demo
+run vue quick start demo
 
 ```bash
 pnpm run vue
 ```
 
-build LiveVideo demo
+build vue quick start demo
 
 ```bash
 pnpm run build:vue

@@ -8,13 +8,13 @@ install dependencies
 pnpm i
 ```
 
-run LiveVideo demo
+run react quick start demo
 
 ```bash
 pnpm run dev
 ```
 
-build LiveVideo demo
+build react quick start demo
 
 ```bash
 pnpm run build
