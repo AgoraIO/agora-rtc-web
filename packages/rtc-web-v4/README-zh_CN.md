@@ -29,8 +29,8 @@ SDK 会在全局导出一个 AgoraRTC 对象用于使用。
 
 我们提供了 `React`, `Vue`, `Svelte` 的 Demo, 访问地址 [Quick Start Demo](https://github.com/AgoraIO/agora-rtc-web/blob/main/projects).
 
-详细可参考文档 [api-ref.agora.io](https://doc.shengwang.cn/api-ref/rtc/javascript/overview).
+详细可参考文档 [api-ref.agora.io](https://api-ref.agora.io/en/voice-sdk/web/4.x/index.html).
 
-## 发版说明
+## 变更记录
 
-发版说明访问地址为 [发版说明](https://doc.shengwang.cn/doc/rtc/javascript/overview/release-notes).
+变更记录访问地址为 [Release Notes](https://github.com/AgoraIO/agora-rtc-web/blob/main/CHANGELOG.md).

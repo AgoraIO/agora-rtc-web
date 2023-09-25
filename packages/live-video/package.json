@@ -23,6 +23,6 @@
 	},
 	"homepage": "https://github.com/AgoraIO/agora-rtc-web",
 	"dependencies": {
-		"agora-rtc-sdk-ng": "workspace:*"
+		"agora-rtc-sdk-ng": "^4.18.2"
 	}
 }

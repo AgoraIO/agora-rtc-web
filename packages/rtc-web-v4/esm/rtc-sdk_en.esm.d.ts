@@ -1,9 +1,205 @@
 import { IAudioProcessor } from 'agora-rte-extension';
+import type { IAudioProcessorContext } from 'agora-rte-extension';
 import { IBaseProcessor } from 'agora-rte-extension';
 import { IExtension } from 'agora-rte-extension';
+import type { IProcessorContext } from 'agora-rte-extension';
+import type { Kind } from 'agora-rte-extension';
+import type { ProcessorStats } from 'agora-rte-extension';
+import { Usage } from 'agora-rte-extension';
+import type { UsageWithDirection } from 'agora-rte-extension';
 
-declare const AgoraRTC: IAgoraRTC;
-export default AgoraRTC;
+export declare const __CLIENT_LIST__: AgoraRTCClient[];
+
+export declare const __TRACK_LIST__: Track[];
+
+export declare const AgoraRTC: {
+    on(event: "camera-changed", listener: (deviceInfo: DeviceInfo) => void): void;
+    on(event: "microphone-changed", listener: (deviceInfo: DeviceInfo) => void): void;
+    on(event: "playback-device-changed", listener: (deviceInfo: DeviceInfo) => void): void;
+    on(event: "autoplay-failed", listener: () => void): void;
+    on(event: "security-policy-violation", listener: Function): void;
+    onCameraChanged?: (info: DeviceInfo) => void;
+    onMicrophoneChanged?: (info: DeviceInfo) => void;
+    onPlaybackDeviceChanged?: (info: DeviceInfo) => void;
+    onAudioAutoplayFailed?: () => void;
+    onAutoplayFailed?: () => void;
+    onSecurityPolicyViolation?: (event: SecurityPolicyViolationEvent) => void;
+} & EventEmitter;
+
+declare class AgoraRTCClient extends EventEmitter implements IAgoraRTCClient {
+    get connectionState(): ConnectionState;
+    get remoteUsers(): AgoraRTCRemoteUser[];
+    get localTracks(): LocalTrack[];
+    get uid(): undefined | UID;
+    get channelName(): undefined | string;
+    get localDataChannels(): LocalDataChannel[];
+    get mode(): SDK_MODE;
+    get role(): ClientRole;
+    private store;
+    private _uid?;
+    private _channelName?;
+    private _users;
+    private _config;
+    private _clientId;
+    private _appId?;
+    private _key?;
+    private _joinInfo?;
+    private _gateway;
+    private _statsCollector;
+    private _configDistribute;
+    private _leaveMutex;
+    private _publishMutex;
+    private _renewTokenMutex;
+    private _subscribeMutex;
+    private _encryptionMode;
+    private _encryptionSecret;
+    private _encryptionSalt;
+    private _proxyServer?;
+    private _turnServer;
+    private _cloudProxyServerMode;
+    private _lowStreamParameter?;
+    private _streamFallbackTypeCacheMap;
+    private _remoteStreamTypeCacheMap;
+    private _axiosCancelSource;
+    private _audioVolumeIndicationInterval?;
+    private _networkQualityInterval?;
+    private _userOfflineTimeout?;
+    private _streamRemovedTimeout?;
+    private _injectStreamingClient?;
+    private _liveTranscodeStreamingClient?;
+    private _liveRawStreamingClient?;
+    private _channelMediaRelayClient?;
+    private _networkQualitySensitivity;
+    private _p2pChannel;
+    private _useLocalAccessPoint;
+    private _setLocalAPVersion?;
+    private _joinAndNotLeaveYet;
+    private _numberOfJoinCount;
+    private _remoteDefaultVideoStreamType?;
+    private _inspect?;
+    private _moderation?;
+    private _license?;
+    private _pendingPublishedUsers;
+    ntpAlignErrorCount: number;
+    remoteInboundOffset: number;
+    private get codec();
+    private get audioCodec();
+    private get isStringUID();
+    get __className__(): string;
+    constructor(config: ClientConfig);
+    joinMeta(appId: string, channel: string, token: string | null, uid?: UID | null, optionalInfo?: string, use443PortOnly?: boolean, useDualDomain?: boolean): Promise<UID>;
+    join(appId: string, channel: string, token: string | null, uid?: UID | null, optionalInfo?: string): Promise<UID>;
+    private _joinGateway;
+    leave(): Promise<void>;
+    publish(config: IDataChannelConfig): Promise<LocalDataChannel>;
+    publish(tracks: LocalTrack | LocalTrack[], isUserAction?: boolean): Promise<void>;
+    private _publishDataChannel;
+    unpublish(datachannel?: LocalDataChannel): Promise<void>;
+    unpublish(tracks?: LocalTrack | LocalTrack[]): Promise<void>;
+    private _unpublishDataChannel;
+    subscribe(user: AgoraRTCRemoteUser, mediaType: "audio"): Promise<RemoteAudioTrack>;
+    subscribe(user: AgoraRTCRemoteUser, mediaType: "video"): Promise<RemoteVideoTrack>;
+    subscribe(user: AgoraRTCRemoteUser, mediaType: "datachannel", channelId: number): Promise<RemoteDataChannel>;
+    private _subscribeDataChannel;
+    private _p2pSubscribe;
+    private _subscribe;
+    massSubscribe(subscribeList: {
+        user: AgoraRTCRemoteUser;
+        mediaType: "audio" | "video";
+    }[]): Promise<{
+        user: AgoraRTCRemoteUser;
+        mediaType: "audio" | "video";
+        track?: RemoteTrack;
+        error?: AgoraRTCError;
+    }[]>;
+    unsubscribe(user: AgoraRTCRemoteUser, mediaType?: "audio" | "video" | "datachannel", channelId?: number): Promise<void>;
+    private _unsubscribeDataChannel;
+    massUnsubscribe(unsubscribeList: {
+        user: AgoraRTCRemoteUser;
+        mediaType?: "audio" | "video";
+    }[]): Promise<void>;
+    setLowStreamParameter(streamParameter: LowStreamParameter): Promise<void>;
+    enableDualStream(): Promise<void>;
+    disableDualStream(): Promise<void>;
+    setClientRole(role: ClientRole, options?: ClientRoleOptions): Promise<void>;
+    getRemoteInboundOffset(): number;
+    getNtpWallTimeInMs(): number;
+    setProxyServer(proxyServer: string, initializeCall?: boolean): void;
+    setTurnServer(turnServers: TurnServerConfig | TurnServerConfig[] | RTCIceServer[], initializeCall?: boolean): void;
+    setLicense(license: string): void;
+    startProxyServer(mode?: number): void;
+    stopProxyServer(): void;
+    setLocalAccessPointsV2(config: LocalAccessPointConfig): void;
+    setLocalAccessPoints(serverList: string[], domain: string): void;
+    setRemoteDefaultVideoStreamType(streamType: RemoteStreamType): Promise<void>;
+    setRemoteVideoStreamType(uid: UID, streamType: RemoteStreamType): Promise<void>;
+    setStreamFallbackOption(uid: UID, fallbackType: RemoteStreamFallbackType): Promise<void>;
+    setEncryptionConfig(encryptionMode: EncryptionMode, secret: string, salt?: Uint8Array): void;
+    renewToken(token: string): Promise<void>;
+    enableAudioVolumeIndicator(): void;
+    getRTCStats(): AgoraRTCStats;
+    startLiveStreaming(url: string, isTranscoding?: boolean): Promise<void>;
+    setLiveTranscoding(config: LiveStreamingTranscodingConfig): Promise<void>;
+    stopLiveStreaming(url: string): Promise<void>;
+    addInjectStreamUrl(url: string, config: InjectStreamConfig): Promise<void>;
+    removeInjectStreamUrl(): Promise<void>;
+    startChannelMediaRelay(config: ChannelMediaRelayConfiguration): Promise<void>;
+    updateChannelMediaRelay(config: ChannelMediaRelayConfiguration): Promise<void>;
+    stopChannelMediaRelay(): Promise<void>;
+    sendStreamMessage(message: SendDataStreamMessage, needRetry?: boolean): Promise<void>;
+    sendMetadata(metadata: Uint8Array): Promise<void>;
+    sendCustomReportMessage(params: EventCustomReportParams | EventCustomReportParams[]): Promise<void>;
+    getLocalAudioStats(): LocalAudioTrackStats;
+    getRemoteAudioStats(): {
+        [uid: string]: RemoteAudioTrackStats;
+    };
+    getLocalVideoStats(): LocalVideoTrackStats;
+    getRemoteVideoStats(): {
+        [uid: string]: RemoteVideoTrackStats;
+    };
+    getRemoteNetworkQuality(): {
+        [uid: string]: NetworkQuality;
+    };
+    pickSVCLayer(uid: UID, layerOptions: {
+        spatialLayer: 0 | 1 | 2 | 3;
+        temporalLayer: 0 | 1 | 2 | 3;
+    }): Promise<void>;
+    setRTM2Flag(flag: number): Promise<void>;
+    private _reset;
+    private _startSession;
+    private _publishHighStream;
+    private _publishLowStream;
+    private _createLiveStreamingClient;
+    private _createChannelMediaRelayClient;
+    private _handleLocalTrackEnable;
+    private _handleLocalTrackDisable;
+    private _handleUserOnline;
+    private _handleUserOffline;
+    private _handleUpdateDataChannel;
+    private _handleAddAudioOrVideoStream;
+    private _handleRemoveStream;
+    private _handleRemoveDataChannels;
+    private _handleSetStreamLocalEnable;
+    private _handleMuteStream;
+    private _handleP2PLost;
+    private _handleTokenWillExpire;
+    private _handleBeforeUnload;
+    private _handleUpdateNetworkQuality;
+    private _handleGatewayEvents;
+    private _handleGatewaySignalEvents;
+    private _handleP2PAddAudioOrVideoStream;
+    private _handleP2PEvents;
+    private _handleP2PChannelEvents;
+    getKeyMetrics(): KeyMetrics;
+    enableContentInspect(inspectConfig: InspectConfiguration): Promise<void>;
+    disableContentInspect(): Promise<void>;
+    setImageModeration(enabled: boolean, config?: ImageModerationConfiguration): Promise<void>;
+    private handleImageModerationEvents;
+    private handleVideoInspectEvents;
+    getJoinChannelServiceRecords(): JoinChannelServiceRecord[];
+    setPublishAudioFilterEnabled(enabled: boolean): Promise<void>;
+    private _handleResetAddStream;
+}
 
 /**
  * @ignore
@@ -125,6 +321,30 @@ export declare enum AgoraRTCErrorCode {
     DATACHANNEL_CONNECTION_TIMEOUT = "DATACHANNEL_CONNECTION_TIMEOUT",
     PROHIBITED_OPERATION = "PROHIBITED_OPERATION",
     IMAGE_MODERATION_UPLOAD_FAILED = "IMAGE_MODERATION_UPLOAD_FAILED"
+}
+
+
+declare class AgoraRTCRemoteUser implements IAgoraRTCRemoteUser {
+    uid: UID;
+    _uintid: number;
+    _trust_audio_enabled_state_: boolean;
+    _trust_video_enabled_state_: boolean;
+    _trust_audio_mute_state_: boolean;
+    _trust_video_mute_state_: boolean;
+    _audio_muted_: boolean;
+    _video_muted_: boolean;
+    _audio_enabled_: boolean;
+    _video_enabled_: boolean;
+    _audio_added_: boolean;
+    _video_added_: boolean;
+    _trust_video_stream_added_state_: boolean;
+    _trust_audio_stream_added_state_: boolean;
+    get hasVideo(): boolean;
+    get hasAudio(): boolean;
+    get audioTrack(): undefined | RemoteAudioTrack;
+    get videoTrack(): undefined | RemoteVideoTrack;
+    get dataChannels(): RemoteDataChannel[];
+    constructor(uid: UID, uintid: number);
 }
 
 /**
@@ -292,6 +512,59 @@ declare const AUDIO_ENCODER_CONFIG_SETTINGS: {
     high_quality_stereo: AudioEncoderConfiguration;
 };
 
+declare class AudioBufferSource extends AudioSource {
+    private audioBuffer;
+    protected sourceNode?: AudioBufferSourceNode;
+    private startPlayTime;
+    private startPlayOffset;
+    private pausePlayTime;
+    private options;
+    private currentLoopCount;
+    private currentPlaybackSpeed;
+    set currentState(state: AudioSourceState);
+    get currentState(): AudioSourceState;
+    private _currentState;
+    constructor(buffer: AudioBuffer, options?: AudioSourceOptions);
+    createWebAudioDiagram(): GainNode;
+    get duration(): number;
+    get playbackSpeed(): number;
+    get currentTime(): number;
+    updateOptions(options: AudioSourceOptions): void;
+    startProcessAudioBuffer(): void;
+    pauseProcessAudioBuffer(): void;
+    seekAudioBuffer(time: number): void;
+    resumeProcessAudioBuffer(): void;
+    stopProcessAudioBuffer(): void;
+    destroy(): void;
+    setAudioBufferPlaybackSpeed(speed: number): void;
+    private startSourceNode;
+    private createSourceNode;
+    private handleSourceNodeEnded;
+    private reset;
+}
+
+declare class AudioElementPlayCenter {
+    onAutoplayFailed?: () => void;
+    private elementMap;
+    private elementStateMap;
+    private elementsNeedToResume;
+    private sinkIdMap;
+    constructor();
+    setSinkID(trackId: string, deviceID: string): Promise<void>;
+    play(track: MediaStreamTrack, trackId: string, volume: number, sessionId?: string): void;
+    updateTrack(trackId: string, track: MediaStreamTrack): void;
+    isPlaying(trackId: string): boolean;
+    setVolume(trackId: string, volume: number): void;
+    stop(trackId: string): void;
+    private bindAudioElementEvents;
+    getPlayerState(trackId: string): string;
+    private autoResumeAudioElement;
+    private autoResumeAfterInterruption;
+    private autoResumeAfterInterruptionOnIOS15_16;
+}
+
+export declare const audioElementPlayCenter: AudioElementPlayCenter;
+
 /**
  *
  * `AudioEncoderConfiguration` is the interface that defines the audio encoder configurations.
@@ -339,6 +612,86 @@ export declare interface AudioEncoderConfiguration {
  */
 export declare type AudioEncoderConfigurationPreset = keyof typeof AUDIO_ENCODER_CONFIG_SETTINGS;
 
+declare class AudioProcessorContext extends EventEmitter implements IAudioProcessorContext {
+    private constraintsMap;
+    private statsRegistry;
+    private readonly audioContext;
+    private readonly trackId;
+    private readonly direction;
+    private usageRegistry;
+    private _chained;
+    set chained(chained: boolean);
+    get chained(): boolean;
+    constructor(audioContext: AudioContext, trackId: string, direction: "local" | "remote");
+    getConstraints(): Promise<MediaTrackConstraints>;
+    getAudioContext(): AudioContext;
+    requestApplyConstraints(constraints: MediaTrackConstraints, processor: IBaseProcessor): Promise<void>;
+    requestRevertConstraints(processor: IBaseProcessor): Promise<void>;
+    registerStats(processor: IBaseProcessor, type: string, cb: () => any): void;
+    unregisterStats(processor: IBaseProcessor, type: string): void;
+    gatherStats(): ProcessorStats[];
+    registerUsage(processor: IBaseProcessor, cb: () => Usage): void;
+    unregisterUsage(processor: IBaseProcessor): void;
+    gatherUsage(): Promise<UsageWithDirection[]>;
+    getDirection(): "local" | "remote";
+}
+
+declare class AudioProcessorDestination extends EventEmitter implements IAudioProcessor {
+    name: string;
+    ID: string;
+    private inputTrack?;
+    private inputNode?;
+    private readonly audioProcessorContext;
+    _source?: IAudioProcessor;
+    constructor(audioProcessorContext: AudioProcessorContext);
+    get kind(): Kind;
+    get enabled(): boolean;
+    pipe(): IAudioProcessor;
+    unpipe(): void;
+    enable(): void;
+    disable(): void;
+    reset(): void;
+    updateInput(inputOptions: {
+        track?: MediaStreamTrack;
+        node?: AudioNode;
+        context: IAudioProcessorContext;
+    }): void;
+}
+
+declare abstract class AudioSource extends EventEmitter {
+    outputNode: GainNode;
+    outputTrack?: MediaStreamTrack;
+    isPlayed: boolean;
+    protected abstract sourceNode?: AudioNode;
+    context: AudioContext;
+    private audioBufferNode?;
+    private destNode?;
+    private audioOutputLevel;
+    protected volumeLevelAnalyser: VolumeLevelAnalyser;
+    private _processedNode;
+    get processSourceNode(): AudioNode | undefined;
+    set processedNode(node: AudioNode | undefined);
+    get processedNode(): AudioNode | undefined;
+    protected playNode: AudioNode;
+    protected isDestroyed: boolean;
+    protected onNoAudioInput?: () => void;
+    protected isNoAudioInput: boolean;
+    private _noAudioInputCount;
+    constructor();
+    startGetAudioBuffer(bufferSize: number): void;
+    stopGetAudioBuffer(): void;
+    createOutputTrack(): MediaStreamTrack;
+    play(dest?: AudioNode): void;
+    stop(): void;
+    getAccurateVolumeLevel(): number;
+    checkHasAudioInput(times?: number): Promise<boolean>;
+    getAudioVolume(): number;
+    setVolume(level: number): void;
+    destroy(): void;
+    protected disconnect(): void;
+    protected connect(): void;
+}
+
 /**
  * Options for processing the audio buffer. You need to set the options for processing the audio buffer when calling [startProcessAudioBuffer]{@link IBufferSourceAudioTrack.startProcessAudioBuffer}.
  */
@@ -368,6 +721,24 @@ export declare interface AudioSourceOptions {
  * You can get the state with [BufferSourceAudioTrack.on("source-state-change")]{@link IBufferSourceAudioTrack.event_source_state_change}.
  */
 export declare type AudioSourceState = "stopped" | "playing" | "paused";
+
+declare class AudioTrackSource extends AudioSource {
+    protected sourceNode: MediaStreamAudioSourceNode;
+    track: MediaStreamTrack;
+    clonedTrack?: MediaStreamTrack;
+    private audioElement;
+    private isCurrentTrackCloned;
+    private isRemoteTrack;
+    private originVolumeLevelAnalyser?;
+    get isFreeze(): boolean;
+    constructor(track: MediaStreamTrack, isRemoteTrack?: boolean, originTrack?: MediaStreamTrack);
+    private rebuildWebAudio;
+    updateTrack(track: MediaStreamTrack): void;
+    destroy(): void;
+    createMediaStreamSourceNode(track: MediaStreamTrack): MediaStreamAudioSourceNode;
+    updateOriginTrack(originTrack: MediaStreamTrack): void;
+    getOriginVolumeLevel(): number;
+}
 
 /**
  * @ignore
@@ -403,6 +774,24 @@ export declare interface BeautyEffectOptions {
     lighteningContrastLevel?: 0 | 1 | 2;
 }
 
+declare class BufferSourceAudioTrack extends LocalAudioTrack implements IBufferSourceAudioTrack {
+    source: string | File | AudioBuffer | null;
+    private _bufferSource;
+    get __className__(): string;
+    constructor(source: string | File | AudioBuffer, bufferSource: AudioBufferSource, encodingConfig?: AudioEncoderConfiguration, trackId?: string);
+    get currentState(): AudioSourceState;
+    get duration(): number;
+    get playbackSpeed(): number;
+    getCurrentTime(): number;
+    startProcessAudioBuffer(options?: AudioSourceOptions): void;
+    pauseProcessAudioBuffer(): void;
+    seekAudioBuffer(time: number): void;
+    resumeProcessAudioBuffer(): void;
+    stopProcessAudioBuffer(): void;
+    close(): void;
+    setAudioBufferPlaybackSpeed(speed: number): void;
+}
+
 /**
  * Configurations for the audio track from an audio file or `AudioBuffer` object. Set these configurations when calling [AgoraRTC.createBufferSourceAudioTrack]{@link IAgoraRTC.createBufferSourceAudioTrack}.
  */
@@ -430,6 +819,33 @@ export declare interface BufferSourceAudioTrackInitConfig {
      * > Firefox does not support setting the audio encoding rate.
      */
     encoderConfig?: AudioEncoderConfiguration | AudioEncoderConfigurationPreset;
+}
+
+export declare const BUILD: string;
+
+declare class CameraVideoTrack extends LocalVideoTrack implements ICameraVideoTrack {
+    private _config;
+    private _originalConstraints;
+    private _constraints;
+    _enabled: boolean;
+    _deviceName: string;
+    get __className__(): string;
+    constructor(track: MediaStreamTrack, config: CameraVideoTrackInitConfig, constraints: MediaTrackConstraints, scalabilityConfig?: SVCConfiguration, optimizationMode?: "motion" | "detail" | "balanced", trackId?: string);
+    setDevice(deviceId: string | RequiredOnlyOneOf<{
+        facingMode: VideoFacingModeEnum;
+        deviceId: string;
+    }>): Promise<void>;
+    private _setDeviceById;
+    private _setDeviceByFacingModel;
+    setEnabled(enabled: boolean, skipChangeState?: boolean): Promise<void>;
+    setEncoderConfiguration(config: VideoEncoderConfiguration | VideoEncoderConfigurationPreset, doNotRenegoation?: boolean): Promise<void>;
+    protected _getDefaultPlayerConfig(): Partial<PlayerConfig>;
+    protected onTrackEnded(): void;
+    renewMediaStreamTrack(newConstraints?: MediaTrackConstraints): Promise<void>;
+    tryResumeVideoForIOS15_16WeChat: () => Promise<void>;
+    close(): void;
+    clone(config?: VideoEncoderConfiguration | VideoEncoderConfigurationPreset, cloneTrack?: boolean): CameraVideoTrack;
+    bindProcessorContextEvents(): void;
 }
 
 /**
@@ -487,6 +903,14 @@ export declare interface CameraVideoTrackInitConfig {
      * - Use your custom SVC configurations through {@link SVCConfiguration}.
      */
     scalabiltyMode?: SVCConfiguration | SVCConfigurationPreset;
+}
+
+declare class ChannelMediaRelayConfiguration implements IChannelMediaRelayConfiguration {
+    private destChannelMediaInfos;
+    private srcChannelMediaInfo?;
+    setSrcChannelInfo(info: ChannelMediaRelayInfo): void;
+    addDestChannelInfo(info: ChannelMediaRelayInfo): void;
+    removeDestChannelInfo(channelName: string): void;
 }
 
 /**
@@ -609,6 +1033,12 @@ export declare enum ChannelMediaRelayState {
     RELAY_STATE_FAILURE = "RELAY_STATE_FAILURE"
 }
 
+export declare function checkAudioTrackIsActive(track: LocalAudioTrack | RemoteAudioTrack, timeout?: number): Promise<boolean>;
+
+export declare function checkSystemRequirements(): boolean;
+
+export declare function checkVideoTrackIsActive(track: LocalVideoTrack | RemoteVideoTrack, timeout?: number): Promise<boolean>;
+
 /**
  * The visibility of the `<video>` tag.
  *
@@ -724,6 +1154,8 @@ export declare interface ClientRoleOptions {
     delay?: number;
 }
 
+declare type CloudProxyServerMode = "disabled" | "proxy3" | "proxy4" | "proxy5" | "proxy6" | "fallback";
+
 /**
  * Reason for the disconnection.
  */
@@ -823,6 +1255,28 @@ export declare interface ConstrainLong {
      */
     exact?: number;
 }
+
+export declare function createBufferSourceAudioTrack(config: BufferSourceAudioTrackInitConfig): Promise<BufferSourceAudioTrack>;
+
+export declare function createCameraVideoTrack(config?: CameraVideoTrackInitConfig): Promise<CameraVideoTrack>;
+
+export declare function createChannelMediaRelayConfiguration(): IChannelMediaRelayConfiguration;
+
+export declare function createClient(config?: ClientConfig): IAgoraRTCClient;
+
+export declare function createCustomAudioTrack(config: CustomAudioTrackInitConfig): LocalAudioTrack;
+
+export declare function createCustomVideoTrack(config: CustomVideoTrackInitConfig): LocalVideoTrack;
+
+export declare function createMicrophoneAndCameraTracks(audioConfig?: MicrophoneAudioTrackInitConfig, videoConfig?: CameraVideoTrackInitConfig): Promise<[MicrophoneAudioTrack, CameraVideoTrack]>;
+
+export declare function createMicrophoneAudioTrack(config?: MicrophoneAudioTrackInitConfig): Promise<MicrophoneAudioTrack>;
+
+export declare function createScreenVideoTrack(config: ScreenVideoTrackInitConfig, withAudio: "enable"): Promise<[LocalVideoTrack, LocalAudioTrack]>;
+
+export declare function createScreenVideoTrack(config?: ScreenVideoTrackInitConfig, withAudio?: "disable"): Promise<LocalVideoTrack>;
+
+export declare function createScreenVideoTrack(config: ScreenVideoTrackInitConfig, withAudio: "auto"): Promise<[LocalVideoTrack, LocalAudioTrack] | LocalVideoTrack>;
 
 /**
  * Configurations for the custom audio track. Set these configurations when calling [AgoraRTC.createCustomAudioTrack]{@link IAgoraRTC.createCustomAudioTrack}.
@@ -924,6 +1378,54 @@ export declare interface CustomVideoTrackInitConfig {
     scalabiltyMode?: SVCConfiguration | SVCConfigurationPreset;
 }
 
+declare abstract class DataChannel extends EventEmitter implements IDataChannel {
+    private _version;
+    private _type;
+    _config: IDataChannelConfig;
+    _originDataChannel?: RTCDataChannel;
+    protected _dataStreamPacketHeader: ArrayBuffer;
+    protected _dataStreamPacketHandler: DataStream;
+    private _datachannelEventMap;
+    constructor(config: IDataChannelConfig, datachannel?: RTCDataChannel);
+    get id(): number;
+    get ordered(): boolean;
+    get maxRetransmits(): number;
+    get metadata(): string;
+    get readyState(): RTCDataChannelState;
+    get _originDataChannelId(): number | null;
+    getChannelId(): number;
+    getConfig(): IDataChannelConfig;
+    _close(): void;
+    _waitTillOpen(): Promise<void>;
+    _updateOriginDataChannel(datachannel: RTCDataChannel): void;
+    private _initPacketHeader;
+    private _bandDataChannelEvents;
+    private _unbindDataChannelEvents;
+}
+
+declare class DataStream {
+    private _sequence;
+    private _startTime;
+    private isUseOneByte;
+    private get startTime();
+    private get sequence();
+    serialize(payload: ArrayBuffer): ArrayBuffer;
+    deserialize(packet: ArrayBuffer): ArrayBuffer;
+    private serializeExtension;
+    private deserializeExtension;
+    private decompress;
+    private compress;
+}
+
+declare interface DenoiserStats {
+    ns: number;
+    ebn: number;
+    ean: number;
+    vl: number;
+}
+
+export declare const DEV: boolean;
+
 /**
  * Information of the media input device.
  *
@@ -961,6 +1463,8 @@ export declare interface DeviceInfo {
  */
 export declare type DeviceState = "ACTIVE" | "INACTIVE";
 
+export declare function disableLogUpload(): void;
+
 /**
  * Information of the sharing screen source on Electron, which is retrieved by calling {@link getElectronScreenSources}.
  *
@@ -983,6 +1487,8 @@ export declare interface ElectronDesktopCapturerSource {
     thumbnail: IElectronNativeImage;
 }
 
+export declare function enableLogUpload(): void;
+
 /**
  * The encryption mode, which is used in the {@link setEncryptionConfig} method call.
  * - `"aes-128-xts"`: 128-bit AES encryption, XTS mode.
@@ -996,6 +1502,10 @@ export declare interface ElectronDesktopCapturerSource {
  * - `"none"`: No encryption.
  */
 export declare type EncryptionMode = "aes-128-xts" | "aes-256-xts" | "aes-128-ecb" | "sm4-128-ecb" | "aes-128-gcm" | "aes-256-gcm" | "aes-128-gcm2" | "aes-256-gcm2" | "none";
+
+export declare const ESM: boolean;
+
+export declare const ESM_BUNDLER: boolean;
 
 /**
  * **Since**
@@ -1680,6 +2190,56 @@ declare class EventEmitter {
     removeAllListeners(event?: string): void;
     private _indexOfListener;
 }
+
+declare interface ExternalMethods {
+    getDenoiserStats?: () => DenoiserStats | undefined;
+}
+
+declare class FakeAudioNode {
+    disconnect(): void;
+    connect(): void;
+}
+
+declare class FakeTrackSource extends EventEmitter {
+    context: any;
+    processSourceNode: undefined;
+    outputTrack: undefined;
+    processedNode: undefined;
+    clonedTrack: undefined;
+    outputNode: FakeAudioNode;
+    get isPlayed(): boolean;
+    get isFreeze(): boolean;
+    constructor();
+    setVolume(): void;
+    createOutputTrack(): MediaStreamTrack;
+    getOriginVolumeLevel(): number;
+    getAccurateVolumeLevel(): number;
+    stopGetAudioBuffer(): void;
+    startGetAudioBuffer(): void;
+    play(): void;
+    stop(): void;
+    destroy(): void;
+    updateTrack(): void;
+    updateOriginTrack(): void;
+    createMediaStreamSourceNode(): undefined;
+}
+
+export declare function getCameras(skipPermissionCheck?: boolean): Promise<MediaDeviceInfo[]>;
+
+export declare function getDevices(skipPermissionCheck?: boolean): Promise<MediaDeviceInfo[]>;
+
+export declare function getElectronScreenSources(type?: ScreenSourceType): Promise<ElectronDesktopCapturerSource[]>;
+
+export declare function getMicrophones(skipPermissionCheck?: boolean): Promise<MediaDeviceInfo[]>;
+
+export declare function getParameter(key: keyof typeof MUTABLE_PARAMS): any;
+
+export declare function getPlaybackDevices(skipPermissionCheck?: boolean): Promise<MediaDeviceInfo[]>;
+
+export declare function getSupportedCodec(): Promise<{
+    video: string[];
+    audio: string[];
+}>;
 
 /**
  * The entry point of the Agora Web SDK.
@@ -4221,6 +4781,48 @@ export declare interface ITrack extends EventEmitter {
     stop(): void;
 }
 
+declare interface JoinChannelServiceRecord {
+    urls: string[];
+    startTs: number;
+    endTs: number | undefined;
+    sessionId: string;
+    errors?: Error[];
+    uid?: UID;
+    status: "pending" | "success" | "error" | "timeout" | "aborted";
+    service: "stringUID" | "chooseServer" | "gateway";
+    cloudProxyMode: "disabled" | "normal" | "443only" | "proxy3" | "proxy4" | "proxy5" | "proxy6" | "fallback";
+}
+
+declare interface KeyMetrics {
+    clientCreated?: number;
+    joinStart?: number;
+    joinEnd?: number;
+    requestAPStart?: number;
+    requestAPEnd?: number;
+    joinGatewayStart?: number;
+    joinGatewayEnd?: number;
+    peerConnectionStart?: number;
+    peerConnectionEnd?: number;
+    descriptionStart?: number;
+    iceConnectionEnd?: number;
+    datachannelOpen?: number;
+    publish: {
+        trackId: string;
+        type: "video" | "audio";
+        publishStart?: number;
+        publishEnd?: number;
+    }[];
+    subscribe: {
+        userId: UID;
+        type: "video" | "audio";
+        subscribeStart?: number;
+        subscribeEnd?: number;
+        firstFrame?: number;
+        streamAdded?: number;
+        firstDecoded?: number;
+    }[];
+}
+
 /**
  * The configurations for CDN live stream transcoding. To be used when you call [setLiveTranscoding]{@link IAgoraRTCClient.setLiveTranscoding}.
  */
@@ -4459,6 +5061,48 @@ export declare type LocalAccessPointConfig = {
     };
 };
 
+declare class LocalAudioTrack extends LocalTrack implements ILocalAudioTrack {
+    readonly trackMediaType: "audio" | "video";
+    _encoderConfig?: AudioEncoderConfiguration;
+    _trackSource: AudioTrackSource | FakeTrackSource;
+    get _source(): AudioTrackSource | FakeTrackSource;
+    set _source(source: AudioTrackSource | FakeTrackSource);
+    _enabled: boolean;
+    private _volume;
+    _useAudioElement: boolean;
+    _bypassWebAudio: boolean;
+    protected processor?: IAudioProcessor;
+    protected _processorContext: AudioProcessorContext;
+    protected get processorContext(): AudioProcessorContext;
+    protected set processorContext(ctx: AudioProcessorContext);
+    _processorDestination: AudioProcessorDestination;
+    get processorDestination(): AudioProcessorDestination;
+    set processorDestination(des: AudioProcessorDestination);
+    protected _getOriginVolumeLevel: boolean;
+    get isPlaying(): boolean;
+    get __className__(): string;
+    constructor(track: MediaStreamTrack, encoderConfig?: AudioEncoderConfiguration, trackId?: string, getOriginVolumeLevel?: boolean, deferWebAudio?: boolean);
+    setVolume(volume: number): void;
+    getVolumeLevel(): number;
+    setPlaybackDevice(deviceId: string): Promise<void>;
+    setEnabled(enabled: boolean, _?: any, skipChangeState?: boolean): Promise<void>;
+    protected _setEnabled(enabled: boolean, _?: any, skipChangeState?: boolean): Promise<void>;
+    setMuted(muted: boolean): Promise<void>;
+    getStats(): LocalAudioTrackStats;
+    setAudioFrameCallback(callback: null | ((buffer: AudioBuffer) => void), frameSize?: number): void;
+    play(): void;
+    stop(): void;
+    close(): void;
+    protected _updatePlayerSource(updateWebAudioSource?: boolean): void;
+    protected _updateOriginMediaStreamTrack(track: MediaStreamTrack, stopOldTrack: boolean): Promise<void>;
+    renewMediaStreamTrack(newConstraints?: MediaTrackConstraints): Promise<void>;
+    pipe(processor: IAudioProcessor): IAudioProcessor;
+    unpipe(): void;
+    private bindProcessorDestinationEvents;
+    private unbindProcessorDestinationEvents;
+    private unbindProcessorContextEvents;
+}
+
 /**
  * Information of the local audio track, which can be retrieved by calling [AgoraRTCClient.getLocalAudioStats]{@link IAgoraRTCClient.getLocalAudioStats}.
  */
@@ -4513,6 +5157,94 @@ export declare interface LocalAudioTrackStats {
      * The packet loss rate of the sent audio in 400ms.
      */
     currentPacketLossRate: number;
+}
+
+declare class LocalDataChannel extends DataChannel implements ILocalDataChannel {
+    send(data: ArrayBuffer): void;
+}
+
+declare abstract class LocalTrack extends Track implements ILocalTrack {
+    _enabled: boolean;
+    _muted: boolean;
+    _isExternalTrack: boolean;
+    get isExternalTrack(): boolean;
+    get muted(): boolean;
+    get enabled(): boolean;
+    _isClosed: boolean;
+    protected _enabledMutex: PromiseMutex;
+    protected processor?: IBaseProcessor;
+    protected abstract _processorContext: IProcessorContext;
+    protected get processorContext(): IProcessorContext;
+    protected set processorContext(ctx: IProcessorContext);
+    constructor(track: MediaStreamTrack, trackId?: string);
+    abstract getStats(): LocalVideoTrackStats | LocalAudioTrackStats;
+    abstract setMuted(enabled: boolean): Promise<void>;
+    abstract setEnabled(enabled: boolean): Promise<void>;
+    getTrackLabel(): string;
+    close(): void;
+    protected _updateOriginMediaStreamTrack(track: MediaStreamTrack, stopOldTrack: boolean, isExternalTrack?: boolean): Promise<void>;
+    protected abstract _updatePlayerSource(): void;
+    protected _getDefaultPlayerConfig(): Partial<PlayerConfig>;
+    protected _handleTrackEnded: () => void;
+    protected onTrackEnded(): void;
+    protected stateCheck(stateName: "enabled" | "muted", state: boolean): void;
+    abstract renewMediaStreamTrack(): Promise<void>;
+    getProcessorStats(): ProcessorStats[];
+    getProcessorUsage(): Promise<UsageWithDirection[]>;
+}
+
+declare class LocalVideoTrack extends LocalTrack implements ILocalVideoTrack {
+    readonly trackMediaType: "audio" | "video";
+    _player?: AgoraRTCPlayer | VideoPlayer;
+    private _videoVisibleTimer;
+    private _previousVideoVisibleStatus;
+    private _clearPreviousVideoVisibleStatus;
+    _encoderConfig?: Partial<VideoEncoderConfiguration>;
+    _scalabilityMode?: SVCConfiguration;
+    _optimizationMode?: "motion" | "detail" | "balanced";
+    _videoHeight?: number;
+    _videoWidth?: number;
+    _forceBitrateLimit?: {
+        max_bitrate: number;
+        min_bitrate: number;
+    };
+    _enabled: boolean;
+    get isPlaying(): boolean;
+    processorDestination: VideoProcessorDestination;
+    protected _processorContext: VideoProcessorContext;
+    protected get processorContext(): VideoProcessorContext;
+    protected set processorContext(ctx: VideoProcessorContext);
+    get __className__(): string;
+    constructor(track: MediaStreamTrack, encoderConfig?: Partial<VideoEncoderConfiguration>, scalabilityConfig?: SVCConfiguration, optimizationMode?: "motion" | "detail" | "balanced", trackId?: string, hints?: TrackHint[]);
+    play(element: HTMLElement | HTMLVideoElement | string, config?: VideoPlayerConfig): void;
+    stop(): void;
+    setEnabled(enabled: boolean, skipChangeState?: boolean): Promise<void>;
+    setMuted(muted: boolean): Promise<void>;
+    setEncoderConfiguration(config: VideoEncoderConfiguration | VideoEncoderConfigurationPreset, doNotRenegoation?: boolean): Promise<void>;
+    getStats(): LocalVideoTrackStats;
+    setBeautyEffect(enabled: boolean, options?: BeautyEffectOptions): Promise<void>;
+    getCurrentFrameData(): ImageData;
+    getCurrentFrameImage(imageType: string, quality?: number): Promise<ImageTypedData>;
+    setBitrateLimit(bitrateLimit: {
+        max_bitrate: number;
+        min_bitrate: number;
+    }): Promise<void>;
+    setOptimizationMode(mode: "motion" | "detail" | "balanced"): Promise<void>;
+    setScalabiltyMode(mode: SVCConfiguration): void;
+    updateMediaStreamTrackResolution(): void;
+    protected _updatePlayerSource(): void;
+    protected _getDefaultPlayerConfig(): Partial<VideoPlayerConfig>;
+    updateBitrateFromProfile(): void;
+    getVideoElementVisibleStatus(): CheckVideoVisibleResult | undefined;
+    renewMediaStreamTrack(newConstraints?: MediaTrackConstraints): Promise<void>;
+    pipe(processor: IBaseProcessor): IBaseProcessor;
+    unpipe(): void;
+    close(): void;
+    clone(config?: VideoEncoderConfiguration | VideoEncoderConfigurationPreset, cloneTrack?: boolean): LocalVideoTrack;
+    replaceTrack(track: MediaStreamTrack, stopOldTrack: boolean): Promise<void>;
+    private bindProcessorDestinationEvents;
+    private unbindProcessorDestinationEvents;
+    private unbindProcessorContextEvents;
 }
 
 /**
@@ -4643,6 +5375,39 @@ export declare interface LowStreamParameter {
     bitrate?: number;
 }
 
+declare enum MediaElementStatus {
+    NONE = "none",
+    INIT = "init",
+    CANPLAY = "canplay",
+    PLAYING = "playing",
+    PAUSED = "paused",
+    SUSPEND = "suspend",
+    STALLED = "stalled",
+    WAITING = "waiting",
+    ERROR = "error",
+    DESTROYED = "destroyed",
+    ABORT = "abort",
+    ENDED = "ended",
+    EMPTIED = "emptied",
+    LOADEDDATA = "loadeddata"
+}
+
+declare class MicrophoneAudioTrack extends LocalAudioTrack implements IMicrophoneAudioTrack {
+    _config: MicrophoneAudioTrackInitConfig;
+    _deviceName: string;
+    private _constraints;
+    private readonly _originalConstraints;
+    _enabled: boolean;
+    get __className__(): string;
+    constructor(track: MediaStreamTrack, config: MicrophoneAudioTrackInitConfig, constraints: MediaTrackConstraints, trackId?: string);
+    setDevice(deviceId: string): Promise<void>;
+    setEnabled(enabled: boolean, notCloseDevice?: boolean, skipChangeState?: boolean): Promise<void>;
+    close(): void;
+    protected onTrackEnded(): void;
+    renewMediaStreamTrack(newConstraints?: MediaTrackConstraints): Promise<void>;
+    private bindProcessorContextEvents;
+}
+
 /**
  * Configurations for the audio track from the audio captured by a microphone. Set these configurations when calling [AgoraRTC.createMicrophoneAudioTrack]{@link IAgoraRTC.createMicrophoneAudioTrack}.
  */
@@ -4692,6 +5457,7 @@ export declare interface MicrophoneAudioTrackInitConfig {
     bypassWebAudio?: boolean;
 }
 
+
 /**
  * The last-mile network quality.
  *
@@ -4731,6 +5497,60 @@ export declare interface NetworkQuality {
      * - 6: The network is disconnected and users cannot communicate.
      */
     downlinkNetworkQuality: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+}
+
+export declare function onAudioAutoplayFailed(fn: () => void): void;
+
+export declare function onAutoplayFailed(fn: () => void): void;
+
+export declare function onCameraChanged(fn: (info: DeviceInfo) => void): void;
+
+export declare function onMicrophoneChanged(fn: (info: DeviceInfo) => void): void;
+
+export declare function onSecurityPolicyViolation(fn: (event: SecurityPolicyViolationEvent) => void): void;
+
+
+export declare function processExternalMediaAEC(element: HTMLMediaElement): void;
+
+declare class PromiseMutex {
+    static setLogger(_logger: any): void;
+    private lockingPromise;
+    private locks;
+    private name;
+    private lockId;
+    constructor(name?: string);
+    get isLocked(): boolean;
+    lock(info?: string): Promise<() => void>;
+}
+
+export declare function registerExtensions(extensions: IExtension<any>[]): void;
+
+declare class RemoteAudioTrack extends RemoteTrack implements IRemoteAudioTrack {
+    readonly trackMediaType: "audio" | "video";
+    _source: AudioTrackSource | FakeTrackSource;
+    _useAudioElement: boolean;
+    private _volume;
+    protected processorContext: AudioProcessorContext;
+    processorDestination: AudioProcessorDestination;
+    private _played;
+    private _bypassWebAudio;
+    get isPlaying(): boolean;
+    get __className__(): string;
+    constructor(track: MediaStreamTrack, userId: UID, uintId: number, store: SDKStore);
+    setAudioFrameCallback(callback: null | ((buffer: AudioBuffer) => void), frameSize?: number): void;
+    setVolume(volume: number): void;
+    setPlaybackDevice(deviceId: string): Promise<void>;
+    getVolumeLevel(): number;
+    getStats(): RemoteAudioTrackStats;
+    play(): void;
+    stop(): void;
+    _destroy(): void;
+    _isFreeze(): boolean;
+    protected _updatePlayerSource(updateWebAudioSource?: boolean): void;
+    pipe(processor: IAudioProcessor): IAudioProcessor;
+    unpipe(): void;
+    private bindProcessorDestinationEvents;
+    private unbindProcessorDestinationEvents;
 }
 
 /**
@@ -4815,6 +5635,14 @@ export declare interface RemoteAudioTrackStats {
     publishDuration: number;
 }
 
+declare class RemoteDataChannel extends DataChannel implements IRemoteDataChannel {
+    private _messageListener;
+    constructor(config: IDataChannelConfig);
+    _updateOriginDataChannel(datachannel: RTCDataChannel): void;
+    _close(): void;
+    private _bandRemoteDataChannelEvents;
+}
+
 /**
  * The stream fallback option. Set the stream fallback option when calling [setStreamFallbackOption]{@link IAgoraRTCClient.setStreamFallbackOption}.
  *
@@ -4845,6 +5673,49 @@ export declare enum RemoteStreamType {
      * 1: Low-quality video stream (low-bitrate, low-resolution).
      */
     LOW_STREAM = 1
+}
+
+declare abstract class RemoteTrack extends Track implements IRemoteTrack {
+    private _userId;
+    _isDestroyed: boolean;
+    protected store: SDKStore;
+    protected processor?: IBaseProcessor;
+    protected abstract processorContext: IProcessorContext;
+    getUserId(): UID;
+    abstract getStats(): RemoteAudioTrackStats | RemoteVideoTrackStats;
+    constructor(track: MediaStreamTrack, userId: UID, uintId: number, store: SDKStore);
+    _updateOriginMediaStreamTrack(track: MediaStreamTrack): void;
+    _destroy(): void;
+    protected abstract _updatePlayerSource(): void;
+    getProcessorStats(): ProcessorStats[];
+    getProcessorUsage(): Promise<UsageWithDirection[]>;
+}
+
+declare class RemoteVideoTrack extends RemoteTrack implements IRemoteVideoTrack {
+    private _videoVisibleTimer;
+    private _previousVideoVisibleStatus;
+    private _clearPreviousVideoVisibleStatus;
+    readonly trackMediaType: "audio" | "video";
+    _videoWidth?: number;
+    _videoHeight?: number;
+    _player?: AgoraRTCPlayer | VideoPlayer;
+    processorDestination: VideoProcessorDestination;
+    protected processorContext: VideoProcessorContext;
+    get isPlaying(): boolean;
+    get __className__(): string;
+    constructor(track: MediaStreamTrack, userId: UID, uintId: number, store: SDKStore);
+    getStats(): RemoteVideoTrackStats;
+    play(element: string | HTMLElement | HTMLVideoElement, config?: VideoPlayerConfig): void;
+    stop(): void;
+    getCurrentFrameData(): ImageData;
+    updateMediaStreamTrackResolution(): void;
+    protected _updatePlayerSource(): void;
+    getVideoElementVisibleStatus(): CheckVideoVisibleResult | undefined;
+    pipe(processor: IBaseProcessor): IBaseProcessor;
+    unpipe(): void;
+    private bindProcessorDestinationEvents;
+    private unbindProcessorDestinationEvents;
+    _destroy(): void;
 }
 
 /**
@@ -5133,6 +6004,73 @@ export declare type SDK_CODEC = "h264" | "h265" | "vp8" | "vp9" | "av1";
  */
 export declare type SDK_MODE = "live" | "rtc";
 
+declare class SDKStore {
+    private state;
+    constructor(codec: SDK_CODEC, audioCodec: SDK_AUDIO_CODEC, mode: SDK_MODE, clientId: string);
+    private dispatch;
+    set sessionId(sessionId: string | null);
+    get sessionId(): string | null;
+    get codec(): SDK_CODEC;
+    get audioCodec(): SDK_AUDIO_CODEC;
+    get clientId(): string;
+    set p2pId(p2pId: number);
+    get p2pId(): number;
+    set dcId(dcId: number);
+    get dcId(): number;
+    set uid(uid: UID | undefined);
+    get uid(): UID | undefined;
+    set pubId(pubId: number);
+    get pubId(): number;
+    set cloudProxyServerMode(mode: CloudProxyServerMode);
+    get cloudProxyServerMode(): CloudProxyServerMode;
+    set useDataChannel(val: boolean);
+    get useDataChannel(): boolean;
+    set useP2P(val: boolean);
+    get useP2P(): boolean;
+    clientCreated(): void;
+    joinStart(): void;
+    joinEnd(): void;
+    requestAPStart(): void;
+    requestAPEnd(): void;
+    joinGatewayStart(): void;
+    joinGatewayEnd(): void;
+    peerConnectionStart(): void;
+    peerConnectionEnd(): void;
+    descriptionStart(): void;
+    signalChannelOpen(): void;
+    iceConnectionEnd(): void;
+    publish(trackId: string, type: "video" | "audio" | "datachannel", publishStart?: number, publishEnd?: number): void;
+    subscribe(userId: UID, type: "video" | "audio", subscribeStart?: number, subscribeEnd?: number, firstFrame?: number, streamAdded?: number, firstDecoded?: number): void;
+    massSubscribe(userList: {
+        userId: UID;
+        type: "video" | "audio";
+    }[], subscribeStart?: number, subscribeEnd?: number, firstFrame?: number): void;
+    get keyMetrics(): KeyMetrics;
+    recordJoinChannelService(record: Partial<JoinChannelServiceRecord>, index?: number): number;
+    resetJoinChannelServiceRecords(): void;
+    resetKeyMetrics(): void;
+    get joinChannelServiceRecords(): JoinChannelServiceRecord[];
+    get avoidJoinStart(): number;
+    set avoidJoinStart(avoidJoinStart: number);
+}
+
+declare type SendDataStreamMessage = {
+    payload: string | Uint8Array;
+    syncWithAudio?: boolean;
+} | string | Uint8Array;
+
+export declare function setAppType(type: AppType): void;
+
+export declare function setArea(params: AREAS[] | AREAS | {
+    areaCode: AREAS[];
+    excludedArea?: AREAS;
+}, _force?: boolean): void;
+
+export declare function setLogLevel(level: number): void;
+
+export declare const setParameter: typeof setParameter_2;
+
+
 declare enum StreamType {
     /**
      * 0: High-quality video stream (high-bitrate, high-resolution).
@@ -5201,6 +6139,35 @@ export declare interface SVCConfiguration {
  */
 export declare type SVCConfigurationPreset = keyof typeof SUPPORT_SVC_CONFIG_LIST;
 
+declare abstract class Track extends EventEmitter implements ITrack {
+    abstract readonly trackMediaType: "audio" | "video";
+    private _ID;
+    protected _rtpTransceiver?: RTCRtpTransceiver;
+    protected _lowRtpTransceiver?: RTCRtpTransceiver;
+    abstract get isPlaying(): boolean;
+    _hints: TrackHint[];
+    _isClosed: boolean;
+    _originMediaStreamTrack: MediaStreamTrack;
+    _mediaStreamTrack: MediaStreamTrack;
+    _external: ExternalMethods;
+    constructor(track: MediaStreamTrack, trackId?: string);
+    toString(): string;
+    getTrackId(): string;
+    getMediaStreamTrack(fromInternal?: boolean): MediaStreamTrack;
+    getRTCRtpTransceiver(type?: StreamType): RTCRtpTransceiver | undefined;
+    getMediaStreamTrackSettings(): MediaTrackSettings;
+    protected close(): void;
+    abstract play(element?: HTMLElement | string): void;
+    abstract stop(): void;
+    _updateRtpTransceiver(transceiver?: RTCRtpTransceiver, type?: StreamType): void;
+}
+
+declare enum TrackHint {
+    SCREEN_TRACK = "screen_track",
+    CUSTOM_TRACK = "custome_track",
+    LOW_STREAM = "low_stream"
+}
+
 /**
  * @ignore
  * The configuration of your TURN server. Used when calling [setTurnServer]{@link IAgoraRTCClient.setTurnServer}.
@@ -5243,6 +6210,10 @@ export declare interface TurnServerConfig {
  * To ensure a better end-user experience, Agora recommends using a number as the user ID. See {@link join} for details.
  */
 export declare type UID = number | string;
+
+export declare const UMD: boolean;
+
+export declare const VERSION: string;
 
 /**
  * `VideoEncoderConfiguration` is the interface that defines the video encoder configurations.
@@ -5346,6 +6317,7 @@ export declare interface VideoEncoderConfiguration {
  */
 export declare type VideoEncoderConfigurationPreset = keyof typeof SUPPORT_VIDEO_ENCODER_CONFIG_LIST;
 
+
 /**
  * Playback configurations for a video track. Set the playback configurations for a video track when calling [ILocalVideoTrack.play]{@link ILocalVideoTrack.play}.
  */
@@ -5373,6 +6345,49 @@ export declare interface VideoPlayerConfig {
     fit?: "cover" | "contain" | "fill";
 }
 
+declare class VideoProcessorContext extends EventEmitter implements IProcessorContext {
+    private constraintsMap;
+    private statsRegistry;
+    private usageRegistry;
+    private readonly trackId;
+    private readonly direction;
+    private _chained;
+    set chained(chained: boolean);
+    get chained(): boolean;
+    constructor(trackId: string, direction: "local" | "remote");
+    getConstraints(): Promise<MediaTrackConstraints>;
+    requestApplyConstraints(constraints: MediaTrackConstraints, processor: IBaseProcessor): Promise<void>;
+    requestRevertConstraints(processor: IBaseProcessor): Promise<void>;
+    registerStats(processor: IBaseProcessor, type: string, cb: () => any): void;
+    unregisterStats(processor: IBaseProcessor, type: string): void;
+    gatherStats(): ProcessorStats[];
+    registerUsage(processor: IBaseProcessor, cb: () => Usage): void;
+    unregisterUsage(processor: IBaseProcessor): void;
+    gatherUsage(): Promise<UsageWithDirection[]>;
+    getDirection(): "local" | "remote";
+}
+
+declare class VideoProcessorDestination extends EventEmitter implements IBaseProcessor {
+    name: string;
+    ID: string;
+    _source?: IBaseProcessor;
+    private readonly videoContext;
+    constructor(videoContext: VideoProcessorContext);
+    private inputTrack?;
+    get kind(): Kind;
+    get enabled(): boolean;
+    pipe(): IBaseProcessor;
+    unpipe(): void;
+    enable(): void;
+    disable(): void;
+    updateInput(inputOptions: {
+        track?: MediaStreamTrack;
+        node?: AudioNode;
+        context: IProcessorContext;
+    }): void;
+    reset(): void;
+}
+
 /**
  * @ignore
  */
@@ -5393,6 +6408,18 @@ declare interface VisibleHiddenResult {
  */
 declare interface VisibleResultInner {
     visible: true;
+}
+
+declare class VolumeLevelAnalyser {
+    private readonly context;
+    private analyserNode;
+    private sourceNode?;
+    constructor();
+    updateSource(sourceNode?: AudioNode): void;
+    getVolumeLevel(): number;
+    getAnalyserNode(): AnalyserNode;
+    rebuildAnalyser(): void;
+    destroy(): void;
 }
 
 export { }

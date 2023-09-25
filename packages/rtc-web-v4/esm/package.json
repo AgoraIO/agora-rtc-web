@@ -1,0 +1,8 @@
+{
+	"name": "agora-rtc-sdk-ng",
+	"version": "4.19.0",
+	"module": "AgoraRTC_N-production.esm-bundler.mjs",
+	"types": "rtc-sdk_en.esm.d.ts",
+	"type": "module",
+	"declaration": true
+}

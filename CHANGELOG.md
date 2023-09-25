@@ -2,4 +2,4 @@
 
 ## Others
 
-More changelogs please check: [Release Notes 4.x](https://docportal.shengwang.cn/en/video-call-4.x/release_web_ng?platform=Web)
+More changelogs please check: [Release Notes 4.x](https://docs.agora.io/en/video-calling/reference/release-notes?platform=web)

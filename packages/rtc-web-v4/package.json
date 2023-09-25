@@ -1,16 +1,49 @@
 {
-  "name": "agora-rtc-sdk-ng",
-  "version": "4.18.2",
-  "description": "",
-  "keywords": [],
-  "main": "AgoraRTC_N-production.js",
-  "module": "AgoraRTC_N-production.esm.js",
-  "typings": "rtc-sdk_en.d.ts",
-  "declaration": true,
-  "declarationMap": true,
-  "author": "agora",
-  "license": "MIT",
-  "dependencies": {
-    "agora-rte-extension": "^1.2.3"
-  }
+	"name": "agora-rtc-sdk-ng",
+	"version": "4.19.0",
+	"description": "Agora WebRTC SDK for JavaScript",
+	"main": "AgoraRTC_N-production.js",
+	"module": "AgoraRTC_N-production.esm.js",
+	"types": "rtc-sdk_en.d.ts",
+	"declaration": true,
+	"exports": {
+		".": {
+			"types": "./rtc-sdk_en.d.ts",
+			"require": "./AgoraRTC_N-production.js",
+			"import": "./AgoraRTC_N-production.esm.mjs"
+		},
+		"./esm": {
+			"types": "./esm/rtc-sdk_en.esm.d.ts",
+			"default": "./esm/AgoraRTC_N-production.esm-bundler.mjs"
+		}
+	},
+	"author": "Agora WebRTC Team",
+	"keywords": [
+		"WebRTC",
+		"agora",
+		"rtc",
+		"agora-js",
+		"rtc-js",
+		"rtc.js"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/AgoraIO/agora-rtc-web.git"
+	},
+	"bugs": {
+		"url": "https://github.com/AgoraIO/agora-rtc-web/issues"
+	},
+	"homepage": "https://api-ref.agora.io/en/voice-sdk/web/4.x/index.html",
+	"dependencies": {
+		"@agora-js/shared": "^4.19.0",
+		"@agora-js/report": "^4.19.0",
+		"@agora-js/media": "^4.19.0",
+		"agora-rte-extension": "^1.2.3",
+		"axios": "^0.27.2",
+		"formdata-polyfill": "^4.0.7",
+		"ua-parser-js": "^0.7.34",
+		"webrtc-adapter": "8.2.0"
+	},
+	"peerDependencies": {}
 }

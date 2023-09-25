@@ -1,6 +1,6 @@
 # AgoraRTC SDK (Version 4.x)
 
-English | [简体中文](./README-zh_CN.md)
+English | [简体中文](https://github.com/AgoraIO/agora-rtc-web/blob/main/projects/README-zh_CN.md)
 
 ## Getting Started
 
@@ -28,9 +28,10 @@ The SDK exports an `AgoraRTC` object globally for use
 ### Quick start
 
 `React`, `Vue`, `Svelte` quick start demo are provided, please check at [Quick Start Demo](https://github.com/AgoraIO/agora-rtc-web/blob/main/projects).
+We also have [More Demos](https://github.com/AgoraIO/API-Examples-Web/tree/main/Demo)
 
 Please follow the documentation at [api-ref.agora.io](https://api-ref.agora.io/en/voice-sdk/web/4.x/index.html).
 
 ## Changelogs
 
-Please check the changelogs at [Release Notes](https://docs.agora.io/en/video-calling/reference/release-notes?platform=web).
+Please check the changelogs at [Release Notes](https://github.com/AgoraIO/agora-rtc-web/blob/main/CHANGELOG.md).
