@@ -20,7 +20,7 @@ yarn add agora-rtc-sdk-ng
 我们也提供了 CDN
 
 ```html
-<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.19.0.js"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.19.1.js"></script>
 ```
 
 SDK 会在全局导出一个 AgoraRTC 对象用于使用。

@@ -1,16 +1,14 @@
 {
 	"name": "agora-rtc-sdk-ng",
-	"version": "4.19.0",
+	"version": "4.19.1",
 	"description": "Agora WebRTC SDK for JavaScript",
 	"main": "AgoraRTC_N-production.js",
-	"module": "AgoraRTC_N-production.esm.js",
 	"types": "rtc-sdk_en.d.ts",
 	"declaration": true,
 	"exports": {
 		".": {
 			"types": "./rtc-sdk_en.d.ts",
-			"require": "./AgoraRTC_N-production.js",
-			"import": "./AgoraRTC_N-production.esm.mjs"
+			"default": "./AgoraRTC_N-production.js"
 		},
 		"./esm": {
 			"types": "./esm/rtc-sdk_en.esm.d.ts",
@@ -36,9 +34,9 @@
 	},
 	"homepage": "https://api-ref.agora.io/en/voice-sdk/web/4.x/index.html",
 	"dependencies": {
-		"@agora-js/shared": "^4.19.0",
-		"@agora-js/report": "^4.19.0",
-		"@agora-js/media": "^4.19.0",
+		"@agora-js/shared": "^4.19.1",
+		"@agora-js/report": "^4.19.1",
+		"@agora-js/media": "^4.19.1",
 		"agora-rte-extension": "^1.2.3",
 		"axios": "^0.27.2",
 		"formdata-polyfill": "^4.0.7",
