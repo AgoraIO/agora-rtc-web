@@ -1,13 +1,31 @@
 import { useRef, useState } from "react";
 import "./App.css";
-import AgoraRTC, {
+import type {
   ICameraVideoTrack,
   IMicrophoneAudioTrack,
   IAgoraRTCClient,
   IAgoraRTCRemoteUser,
-} from "agora-rtc-sdk-ng";
+} from "agora-rtc-sdk-ng/esm";
 
-const client: IAgoraRTCClient = AgoraRTC.createClient({
+import {
+  VERSION,
+  createClient,
+  createCameraVideoTrack,
+  createMicrophoneAudioTrack,
+  onCameraChanged,
+  onMicrophoneChanged
+} from "agora-rtc-sdk-ng/esm"
+
+console.log("Current SDK VERSION: ", VERSION);
+
+onCameraChanged((device) => {
+  console.log("onCameraChanged: ", device);
+})
+onMicrophoneChanged((device) => {
+  console.log("onMicrophoneChanged: ", device);
+})
+
+const client: IAgoraRTCClient = createClient({
   mode: "rtc",
   codec: "vp8",
 });
@@ -27,7 +45,7 @@ function App() {
     if (videoTrack) {
       return videoTrack.setEnabled(flag);
     }
-    videoTrack = await AgoraRTC.createCameraVideoTrack();
+    videoTrack = await createCameraVideoTrack();
     videoTrack.play("camera-video");
   };
 
@@ -39,7 +57,7 @@ function App() {
       return audioTrack.setEnabled(flag);
     }
 
-    audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+    audioTrack = await createMicrophoneAudioTrack();
     // audioTrack.play();
   };
 
