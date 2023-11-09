@@ -12,7 +12,8 @@
     "build:vue": "pnpm -F=./projects/quick-demo-vue build",
     "build:svelte": "pnpm -F=./projects/quick-demo-svelte build",
     "build:react": "pnpm -F=./projects/quick-demo-react build",
-    "live-video": "pnpm -F=./projects/quick-demo-live-video dev"
+    "live-video": "pnpm -F=./projects/quick-demo-live-video dev",
+    "vad": "pnpm -F=./projects/agora-plugin-vad-example dev"
   },
   "husky": {
     "hooks": {
