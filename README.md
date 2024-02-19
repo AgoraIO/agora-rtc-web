@@ -20,7 +20,7 @@ yarn add agora-rtc-sdk-ng
 CDN is also provided
 
 ```html
-<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.19.0.js"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
 ```
 
 The SDK exports an `AgoraRTC` object globally for use
@@ -33,4 +33,4 @@ Please follow the documentation at [api-ref.agora.io](https://api-ref.agora.io/e
 
 ## Changelogs
 
-Please check the changelogs at [Release Notes](https://docs.agora.io/en/video-calling/reference/release-notes?platform=web).
+Please check the changelogs at [Release Notes](https://docs.agora.io/en/video-calling/overview/release-notes?platform=web).
