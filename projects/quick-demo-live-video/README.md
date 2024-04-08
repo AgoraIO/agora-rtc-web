@@ -1,15 +1,13 @@
-# Quick demo for LiveVideo player
+# fls.js demo
 
-## Setup
+## install deps
 
-install dependencies
-
-```bash
+```
 pnpm i
 ```
 
-run LiveVideo demo
+### run demo
 
-```bash
-pnpm run live-video
+```
+pnpm live
 ```
