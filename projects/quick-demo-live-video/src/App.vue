@@ -9,11 +9,17 @@ import LivePlayer from "./LivePlayer.vue";
 </script>
 
 <style>
+html,
+body,
 #app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+#app {
   display: flex;
-  flex-direction: column;
-  color: #2c3e50;
-  margin-top: 60px;
+  justify-content: center;
+  font-family: v-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
 </style>
