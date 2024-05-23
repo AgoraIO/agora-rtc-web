@@ -3,7 +3,6 @@
   "version": "4.18.2",
   "description": "Agora WebRTC SDK",
   "type": "module",
-  "packageManager": "pnpm@8.6.4",
   "private": true,
   "scripts": {
     "vue": "pnpm -F=./projects/quick-demo-vue dev",
