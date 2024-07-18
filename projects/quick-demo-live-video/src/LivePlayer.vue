@@ -162,6 +162,7 @@ import {
   enableNewNetworkConfig,
   isHlsSupported,
   isRtcSupported,
+  setRTCParameter,
   VERSION,
   BUILD_INFO,
   type RtcUser,
@@ -180,6 +181,7 @@ const RTC_VIDEO_STATS_DOC =
 
 enableLogUpload();
 enableNewNetworkConfig();
+setRTCParameter("ENABLE_INSTANT_VIDEO", true);
 
 const notification = Notification;
 
