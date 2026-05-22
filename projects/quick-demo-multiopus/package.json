@@ -9,7 +9,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "agora-rtc-sdk-ng": "4.20.1-100",
+    "agora-rtc-sdk-ng": "4.20.1-200",
+    "less": "^4.2.0",
     "naive-ui": "^2.34.4",
     "vue": "^3.4.31"
   },
