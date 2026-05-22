@@ -1,14 +1,19 @@
 <template>
-  <div id="app">
-    <LivePlayer />
-  </div>
+  <n-notification-provider>
+    <n-message-provider>
+      <n-modal-provider>
+        <LivePlayer />
+      </n-modal-provider>
+    </n-message-provider>
+  </n-notification-provider>
 </template>
 
 <script setup lang="ts">
+import { NNotificationProvider, NMessageProvider, NModalProvider } from "naive-ui";
 import LivePlayer from "./LivePlayer.vue";
 </script>
 
-<style>
+<style lang="less">
 html,
 body,
 #app {
@@ -19,7 +24,5 @@ body,
 #app {
   display: flex;
   justify-content: center;
-  font-family: v-sans, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 }
 </style>

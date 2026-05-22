@@ -1,12 +1,9 @@
-import Vue from "vue";
+import { createApp } from "vue";
 import App from "./App.vue";
-import ElementUI from "element-ui";
-import "element-ui/lib/theme-chalk/index.css";
 
-Vue.config.productionTip = false;
+import "vfonts/FiraCode.css";
+import "vfonts/Lato.css";
 
-Vue.use(ElementUI);
+const app = createApp(App);
 
-new Vue({
-  render: (h) => h(App),
-}).$mount("#app");
+app.mount("#app");

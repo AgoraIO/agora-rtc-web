@@ -1,15 +1,11 @@
 <template>
   <div id="live-player">
     <div class="input-url">
-      <el-input v-model="options.url" placeholder="请输入RTE链接" />
-      <el-button @click="createLivePlayer" type="primary">创建</el-button>
-      <el-button :disabled="!isCreated" @click="switchPlayerUrl"
-        >切换链接</el-button
-      >
-      <el-button :disabled="!isCreated" @click="switchMediaSource"
-        >切换模式</el-button
-      >
-      <el-button @click="resetLivePlayer">重置</el-button>
+      <n-input v-model:value="options.url" placeholder="请输入RTE链接" clearable />
+      <n-button @click="createLivePlayer">创建</n-button>
+      <n-button :disabled="!isCreated" @click="switchPlayerUrl">切换链接</n-button>
+      <n-button :disabled="!isCreated" @click="switchMediaSource">切换模式</n-button>
+      <n-button @click="resetLivePlayer">重置</n-button>
     </div>
     <div class="content">
       <div class="content-left">
@@ -17,92 +13,73 @@
           <video id="remote-video"></video>
         </div>
         <div class="content-operation">
-          <el-button
-            v-if="isAutoplayFailed"
-            @click="togglePlayManually"
-            type="warning"
-          >
+          <n-button v-if="isAutoplayFailed" @click="togglePlayManually" type="warning">
             手动触发播放
-          </el-button>
-          <el-button
+          </n-button>
+          <n-button
             @click="play"
             :loading="isPending"
             :disabled="!isCreated || isPending || isPlaying"
-            type="primary"
+            type="info"
           >
             播放
-          </el-button>
+          </n-button>
           <template></template>
-          <el-button :disabled="!isPlaying" type="primary" @click="pause"
-            >暂停</el-button
-          >
-          <el-button
-            :disabled="isStopped || isPending"
-            type="primary"
-            @click="stop"
-            >停止</el-button
-          >
-          <el-button :disabled="!isCreated" type="primary" @click="mute">
+          <n-button :disabled="!isPlaying" type="info" @click="pause">暂停</n-button>
+          <n-button :disabled="isStopped || isPending" type="info" @click="stop">停止</n-button>
+          <n-button :disabled="!isCreated" type="info" @click="mute">
             {{ isMuted ? "恢复" : "静音" }}
-          </el-button>
-          <el-button :disabled="!isCreated" type="primary" @click="retry"
-            >重试</el-button
-          >
-          <el-button :disabled="!isCreated" type="danger" @click="destroy"
-            >销毁</el-button
-          >
+          </n-button>
+          <n-button :disabled="!isCreated" type="info" @click="retry">重试</n-button>
+          <n-button :disabled="!isCreated" type="error" @click="destroy">销毁</n-button>
         </div>
       </div>
       <div class="content-right">
         <div class="content-parameters">
           <div class="content-tag">
-            <el-tag :type="isRTCSupport ? 'success' : ''" :bordered="false">
-              WebRTC {{ isRTCSupport ? "Supported" : "Unsupported" }}
-            </el-tag>
-            <el-tag :type="isHLSSupport ? 'success' : ''" :bordered="false">
-              HLS {{ isHLSSupport ? "Supported" : "Unsupported" }}
-            </el-tag>
-            <el-tag
-              v-if="isCreated"
-              type="info"
-              :bordered="false"
-              @click="updateNetworkQuality()"
-            >
-              网络状态：{{ networkQuality }}
-            </el-tag>
+            <n-tag :type="isRTCSupport ? 'success' : ''" :bordered="false">
+              WebRTC {{ isRTCSupport ? "✅" : "❌" }}
+            </n-tag>
+            <n-tag :type="isHLSSupport ? 'success' : ''" :bordered="false">
+              HLS {{ isHLSSupport ? "✅" : "❌" }}
+            </n-tag>
+            <template v-if="mediaSource === 'rtc'">
+              <n-tag v-if="isCreated" type="info" :bordered="false" @click="updateNetworkQuality()">
+                网络：{{ networkQuality }}
+              </n-tag>
+              <n-tag v-if="isCreated && rtcMediaStatus" type="warning" :bordered="false">
+                媒体：{{ rtcMediaStatus }}
+              </n-tag>
+            </template>
           </div>
           <div class="content-shape">
-            <el-input-number
-              v-model="options.width"
-              :controls="false"
+            <n-input-number
+              v-model:value="options.width"
+              :show-button="false"
               placeholder="视频宽度"
             />
-            <el-input-number
-              v-model="options.height"
-              :controls="false"
+            <n-input-number
+              v-model:value="options.height"
+              :show-button="false"
               placeholder="视频高度"
             />
           </div>
-          <el-select
+          <n-select
             placeholder="选择视频模式"
-            v-model="options.objectFit"
+            v-model:value="options.objectFit"
             :options="[
               { label: 'contain', value: 'contain' },
               { label: 'cover', value: 'cover' },
               { label: 'fill', value: 'fill' },
             ]"
           />
-          <el-checkbox v-model="options.autoSwitchHLS"
-            >自动切换到HLS</el-checkbox
-          >
-          <el-checkbox v-model="options.defaultUseHLS">默认使用HLS</el-checkbox>
-          <el-checkbox v-model="options.autoplay">自动播放</el-checkbox>
-          <el-checkbox v-model="options.mirror">镜像播放</el-checkbox>
+          <n-checkbox v-model:checked="options.autoSwitchHLS">自动切换到HLS</n-checkbox>
+          <n-checkbox v-model:checked="options.defaultUseHLS">默认使用HLS</n-checkbox>
+          <n-checkbox v-model:checked="options.autoplay">自动播放</n-checkbox>
+          <n-checkbox v-model:checked="options.mirror">镜像播放</n-checkbox>
         </div>
         <div class="content-stats">
-          <div class="content-text-mode">
-            当前模式：{{ mediaSource.toUpperCase() }}
-          </div>
+          <div class="content-text-mode">当前模式：{{ mediaSource.toUpperCase() }}</div>
           <template v-if="isCreated && mediaSource === 'rtc'">
             <div>连接状态：{{ rtcConnectionState }}</div>
             <div>频道内用户状态：{{ remoteUserState }}</div>
@@ -112,43 +89,55 @@
             <div>主播视频状态：{{ hostVideoState }}</div>
             <div>主播音频状态：{{ hostAudioState }}</div>
             <div class="dialog-stats">
-              <el-button type="info" plain @click="showRTCStats" size="mini"
-                >获取统计信息</el-button
-              >
+              <n-button type="info" dashed @click="showRTCStats" size="tiny">获取统计信息</n-button>
             </div>
           </template>
-
           <div class="content-model-stats">
-            <el-dialog
-              :visible.sync="isRTCStatsVisible"
-              custom-class="model-stats"
+            <n-modal
+              v-model:show="isRTCStatsVisible"
+              class="model-stats"
+              preset="card"
               title="RTC 统计信息"
-              @closed="closeRTCStats"
+              :onAfterLeave="closeRTCStats"
             >
-              <el-table :data="rtcMediaStats" style="width: 100%">
-                <el-table-column prop="key" label="属性" width="200" />
-                <el-table-column prop="audio" label="音频" width="200" />
-                <el-table-column prop="video" label="视频" width="200" />
-              </el-table>
+              <n-data-table
+                :columns="[
+                  { title: '属性', key: 'key', minWidth: 140 },
+                  { title: '音频', key: 'audio', minWidth: 120 },
+                  { title: '视频', key: 'video', minWidth: 120 },
+                ]"
+                :data="rtcMediaStats"
+              />
               <template #footer>
-                <a :href="RTC_AUDIO_STATS_DOC" target="_blank">
+                <n-button text tag="a" :href="RTC_AUDIO_STATS_DOC" target="_blank" type="info">
                   音频统计信息文档
-                </a>
-                &nbsp;&nbsp;
-                <a :href="RTC_VIDEO_STATS_DOC" target="_blank">
+                </n-button>
+                <n-space />
+                <n-button text tag="a" :href="RTC_VIDEO_STATS_DOC" target="_blank" type="info">
                   视频统计信息文档
-                </a>
+                </n-button>
               </template>
-            </el-dialog>
+            </n-modal>
           </div>
         </div>
-        <div class="content-sdk">agora-fls-sdk@{{ BUILD_INFO }}</div>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import {
+  NInput,
+  NInputNumber,
+  NButton,
+  NCheckbox,
+  NModal,
+  NSelect,
+  NDataTable,
+  NTag,
+  NSpace,
+  useNotification,
+} from "naive-ui";
 import { h, computed, onBeforeUnmount, reactive, ref } from "vue";
 import {
   LivePlayer,
@@ -163,16 +152,20 @@ import {
   isHlsSupported,
   isRtcSupported,
   setRTCParameter,
-  VERSION,
-  BUILD_INFO,
+  setParameter,
   type RtcUser,
   type IPlayerOptions,
   type RtcVideoStats,
   type RtcAudioStats,
   type IPlayerError,
+  RtcEvent,
 } from "agora-fls-sdk";
 import { watch } from "vue";
-import { Button, Notification } from "element-ui";
+
+setRTCParameter("ENABLE_INSTANT_VIDEO", true);
+setRTCParameter("ENABLE_AUT_CC", true);
+
+setParameter("VIDEO_FROZEN_POINTS", 3);
 
 const RTC_AUDIO_STATS_DOC =
   "https://doc.shengwang.cn/api-ref/rtc/javascript/interfaces/remoteaudiotrackstats";
@@ -181,11 +174,10 @@ const RTC_VIDEO_STATS_DOC =
 
 enableLogUpload();
 enableNewNetworkConfig();
-setRTCParameter("ENABLE_INSTANT_VIDEO", true);
 
-const notification = Notification;
+const notification = useNotification();
 
-const appId = "xxxxxxxxxxxxxxxxxxxxxxxx";
+const appId = "xxxxxxxxxxxxxxxxxxxxxx";
 
 onBeforeUnmount(() => {
   destroy();
@@ -200,6 +192,7 @@ const hostState = ref("");
 const hostId = ref("");
 const mediaSource = ref<MediaSource>(MediaSource.RTC);
 const networkQuality = ref("未知");
+const rtcMediaStatus = ref("");
 const isRTCSupport = isRtcSupported();
 const isHLSSupport = isHlsSupported();
 
@@ -215,16 +208,11 @@ watch(
 );
 
 const rtcMediaStats = computed(() => {
-  const statKeys = Object.keys({
-    ...rtcAudioStats.value,
-    ...rtcVideoStats.value,
-  });
+  const statKeys = Object.keys({ ...rtcAudioStats.value, ...rtcVideoStats.value });
 
   if (statKeys) {
     return statKeys.map((key) => {
-      //@ts-ignore
       let audio = rtcAudioStats.value?.[key] ?? "-";
-      //@ts-ignore
       let video = rtcVideoStats.value?.[key] ?? "-";
 
       if (typeof audio === "number" && String(audio).includes(".")) {
@@ -256,13 +244,10 @@ const isPlaying = computed(() => playState.value === "playing");
 const isAutoplayFailed = ref(false);
 const isRTCStatsVisible = ref(false);
 
-let player: LivePlayer | undefined;
-const stored = localStorage.getItem("__player_options__");
-const storedOptions = stored ? JSON.parse(stored) : null;
+let player: LivePlayer | undefined = undefined;
+const storedOptions = JSON.parse(localStorage.getItem("__player_options__"));
 const defaultOptions: IPlayerOptions = {
-  url: `rte://${appId}/an/sn?token=null&uid=${Math.floor(
-    Math.random() * 100000
-  )}`,
+  url: `rte://${appId}/an/sn?token=null&uid=${Math.floor(Math.random() * 100000)}`,
   el: "remote-video",
   width: undefined,
   height: undefined,
@@ -282,7 +267,6 @@ function resetLivePlayer() {
 
   localStorage.removeItem("__player_options__");
   Object.keys(defaultOptions).forEach((key) => {
-    //@ts-ignore
     options[key] = defaultOptions[key];
   });
 }
@@ -291,14 +275,14 @@ async function createLivePlayer() {
   console.info("LivePlayer createLivePlayer: ", options);
 
   player && (await destroy());
+
+  rtcMediaStatus.value = "";
+
   try {
     player = new LivePlayer({ ...options });
-  } catch (error: Error) {
+  } catch (error) {
     console.error("LivePlayer createLivePlayer error: ", error);
-    notification.error({
-      title: "创建播放器出错",
-      message: error.message || error.name || error,
-    });
+    notification.error({ title: "创建播放器出错", content: error.message || error.name || error });
     throw error;
   }
 
@@ -307,26 +291,20 @@ async function createLivePlayer() {
   // Player
   player.on(PlayerEvent.AUTOPLAY_PREVENTED, onAutoPlayFailed);
   player.on(PlayerEvent.NETWORK_QUALITY, onNetworkQuality);
-  player.on(PlayerEvent.BEFORE_MEDIA_SOURCE_CHANGE, onnBeforeMediaSourceChange);
+  player.on(PlayerEvent.BEFORE_MEDIA_SOURCE_CHANGE, onBeforeMediaSourceChange);
   player.on(PlayerEvent.MEDIA_SOURCE_CHANGED, onMediaSourceChanged);
   player.on(PlayerEvent.PLAY_STATE_CHANGED, onPlayerStateChanged);
-  player.on(
-    PlayerEvent.REQUEST_SWITCH_MEDIA_SOURCE,
-    onRequestSwitchMediaSource
-  );
+  player.on(PlayerEvent.REQUEST_SWITCH_MEDIA_SOURCE, onRequestSwitchMediaSource);
 
   player.on(PlayerEvent.ERROR, onError);
 
   // RTC
   player.on(PlayerEvent.RTC_HOST_CHANGED, onRTCHostChanged);
   player.on(PlayerEvent.RTC_USER_STATE_CHANGED, onRTCUserStateChanged);
-  player.on(
-    PlayerEvent.RTC_MEDIA_CHANGED,
-    ({ type, state }: { type: "audio" | "video"; state: RtcMediaState }) => {
-      if (type === "video") onRTCVideoStateChanged(state);
-      if (type === "audio") onRTCAudioStateChanged(state);
-    }
-  );
+  player.on(PlayerEvent.RTC_MEDIA_CHANGED, ({ type, state }) => {
+    if (type === "video") onRTCVideoStateChanged(state);
+    if (type === "audio") onRTCAudioStateChanged(state);
+  });
 
   player.on(PlayerEvent.RTC_SOURCE_STATE_CHANGED, onRTCStateChanged);
 
@@ -334,9 +312,35 @@ async function createLivePlayer() {
   isCreated.value = true;
 
   localStorage.setItem("__player_options__", JSON.stringify(options));
-
-  //@ts-ignore
   window["player"] = player;
+
+  player.on(PlayerEvent.RTC_EVENTS, (code: RtcEvent) => {
+    switch (code) {
+      case RtcEvent.NETWORK_EXCEPTION:
+        notification.error({ title: "网络异常，请检查网络连接", duration: 2000 });
+        break;
+      case RtcEvent.NETWORK_EXCEPTION_RECOVERED:
+        notification.info({ title: "网络异常已恢复", duration: 2000 });
+
+        break;
+      case RtcEvent.VIDEO_DECODED_FAILED:
+        rtcMediaStatus.value = "视频解码失败";
+        notification.error({ title: rtcMediaStatus.value, duration: 2000 });
+        break;
+      case RtcEvent.VIDEO_DECODED_RECOVERED:
+        rtcMediaStatus.value = "";
+        notification.info({ title: "视频解码失败恢复", duration: 2000 });
+        break;
+      case RtcEvent.VIDEO_FROZEN:
+        rtcMediaStatus.value = "视频发生卡顿";
+        notification.error({ title: rtcMediaStatus.value, duration: 2000 });
+        break;
+      case RtcEvent.VIDEO_FROZEN_RECOVERED:
+        rtcMediaStatus.value = "";
+        notification.info({ title: "视频卡顿已恢复", duration: 2000 });
+        break;
+    }
+  });
 }
 
 async function switchPlayerUrl() {
@@ -395,13 +399,12 @@ function resetRTCStats() {
 
 async function switchMediaSource() {
   if (player) {
-    const target =
-      mediaSource.value === MediaSource.RTC ? MediaSource.HLS : MediaSource.RTC;
+    const target = mediaSource.value === MediaSource.RTC ? MediaSource.HLS : MediaSource.RTC;
     await player.switchMediaSource(target);
   }
 }
 
-const qualities = ["未知", "优秀", "良好", "一般", "较差", "很差", "极差"];
+const qualities = ["未知", "极好", "良好", "一般", "较差", "很差", "断开"];
 function updateNetworkQuality(quality?: 0 | 1 | 2 | 3 | 4 | 5 | 6) {
   if (player && quality == null) {
     quality = player.getNetworkQuality();
@@ -422,7 +425,7 @@ function updateRTCStats() {
 function showRTCStats() {
   if (player && mediaSource.value === MediaSource.RTC) {
     rtcStatsTimer && clearInterval(rtcStatsTimer);
-    rtcStatsTimer = window.setInterval(updateRTCStats, 1000);
+    rtcStatsTimer = setInterval(updateRTCStats, 1000);
     updateRTCStats();
 
     isRTCStatsVisible.value = true;
@@ -442,26 +445,17 @@ function setVolume(value: number) {
 }
 
 // 事件监听
-function onnBeforeMediaSourceChange(target: MediaSource) {
-  console.info("LivePlayer onnBeforeMediaSourceChange to ", target);
+function onBeforeMediaSourceChange(target: MediaSource) {
+  console.info("LivePlayer onBeforeMediaSourceChange to ", target);
 
-  notification.info({
-    message: `当前播放模式即将切换到 ${target}`,
-    title: "模式切换",
-    duration: 3000,
-  });
+  notification.info({ title: `当前播放模式即将切换到 ${target}`, duration: 3000 });
 }
 function onMediaSourceChanged(target: MediaSource) {
   console.info("LivePlayer onMediaSourceChanged to ", target);
 
-  notification.info({
-    message: `当前播放模式已经切换到 ${target}`,
-    title: "模式切换",
-    duration: 3000,
-  });
+  notification.info({ title: `当前播放模式已切换到 ${target}`, duration: 3000 });
 
   if (target === MediaSource.RTC) {
-    //
   }
 
   if (target === MediaSource.HLS) {
@@ -490,12 +484,14 @@ function onRTCUserStateChanged(data: {
   remoteUserState.value = `${data.user.uid}:${data.state}`;
 
   if (data.isHost) {
-    hostState.value =
-      data.state + (data.mediaType ? `: ${data.mediaType}` : "");
+    hostState.value = data.state + (data.mediaType ? `: ${data.mediaType}` : "");
   }
 }
 function onRTCVideoStateChanged(state: RtcMediaState) {
   hostVideoState.value = state;
+  if (state === RtcMediaState.EMPTY || state === RtcMediaState.STOPPED) {
+    rtcMediaStatus.value = "";
+  }
 }
 function onRTCAudioStateChanged(state: RtcMediaState) {
   hostAudioState.value = state;
@@ -506,10 +502,7 @@ function onRTCStateChanged(state: RtcSourceState) {
 
 // Player
 function onAutoPlayFailed() {
-  notification.error({
-    title: "错误",
-    message: "自动播放失败，请手动点击播放",
-  });
+  notification.error({ title: "自动播放失败，请手动点击播放" });
   isAutoplayFailed.value = true;
 }
 function onNetworkQuality(quality: 0 | 1 | 2 | 3 | 4 | 5 | 6) {
@@ -523,25 +516,24 @@ function onRequestSwitchMediaSource(source: MediaSource) {
   } else {
     const nCallback = notification.error({
       title: "发生不可恢复错误",
-      // eslint-disable-next-line no-sparse-arrays
-      message: h("div", [
-        "播放器请求 ",
-        h(
-          Button,
-          {
-            on: {
-              click: () => {
-                nCallback.close();
+      content: () =>
+        h("div", [
+          "播放器请求 ",
+          h(
+            NButton,
+            {
+              onClick: () => {
+                nCallback.destroy();
                 switchMediaSource();
               },
+              type: "info",
+              text: true,
             },
-            attrs: { type: "text" },
-          },
-          "切换"
-        ),
-        ,
-        ` 到${source.toUpperCase()}模式`,
-      ]),
+            "切换"
+          ),
+          ,
+          ` 到${source.toUpperCase()}模式`,
+        ]),
     });
   }
 }
@@ -558,7 +550,7 @@ function onError({ error, source }: IPlayerError) {
 
   notification.error({
     title: `${source} 模式下错误，请重试`,
-    message,
+    content: message,
   });
 }
 </script>
@@ -575,8 +567,7 @@ function onError({ error, source }: IPlayerError) {
   .input-url {
     display: flex;
     margin: 12px;
-    > .el-input {
-      max-width: 640px;
+    > .n-input {
       margin-right: 12px;
     }
     > button {
@@ -627,29 +618,23 @@ function onError({ error, source }: IPlayerError) {
     .content-right {
       .content-parameters {
         margin-bottom: 6px;
-        > .el-input,
-        > .el-checkbox {
-          margin-right: 12px;
+        > .n-input,
+        > .n-select,
+        > .n-checkbox {
           margin-bottom: 6px;
         }
 
         > .content-tag {
           margin-bottom: 12px;
-          > .el-tag {
+          > .n-tag {
             margin-right: 8px;
           }
-        }
-        > .el-select {
-          display: block;
-          max-width: 406px;
-          margin-bottom: 6px;
         }
         > .content-shape {
           display: flex;
           margin-bottom: 6px;
-          > .el-input-number {
+          > .n-input-number {
             flex: 1;
-            max-width: 200px;
             &:first-child {
               margin-right: 6px;
             }
@@ -658,7 +643,6 @@ function onError({ error, source }: IPlayerError) {
       }
 
       .content-stats {
-        flex: 1;
         margin-top: 12px;
         > div {
           display: flex;
@@ -672,23 +656,16 @@ function onError({ error, source }: IPlayerError) {
           margin-top: 8px;
         }
       }
-      .content-sdk {
-        font-size: 12px;
-        color: #999999;
-        text-align: right;
-      }
     }
   }
 }
 
 .model-stats {
   max-width: 640px;
-  .el-dialog__footer {
+  .n-card__footer {
     text-align: right;
     > a {
       margin-right: 12px;
-      text-decoration: none;
-      color: #409eff;
     }
   }
 }
@@ -698,7 +675,7 @@ function onError({ error, source }: IPlayerError) {
     margin-top: 0;
     .input-url {
       flex-wrap: wrap;
-      > .el-input {
+      > .n-input {
         margin-right: 0;
         flex-shrink: 0;
       }
