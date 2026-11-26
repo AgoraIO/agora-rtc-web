@@ -106,7 +106,7 @@ export async function sameContent(remote, local) {
 }
 
 export async function plan(loaded, distTag, read = readRegistry) {
-  check(config.distTags.includes(distTag), 'Use latest, next or hotfix');
+  check(config.distTags.includes(distTag), `Use ${config.distTags.join(', ')}`);
   const cache = new Map(), get = async name => { if (!cache.has(name)) cache.set(name, await read(name)); return cache.get(name); };
   const names = new Set(loaded.packages.map(pkg => pkg.name)), actions = [];
   for (const pkg of loaded.packages) {

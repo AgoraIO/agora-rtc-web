@@ -4,9 +4,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
+import { execFileSync } from 'node:child_process';
 import * as tar from 'tar';
 import { checksums, config, hash, inspect, load, order, plan, readRegistry, safeAsset, safeTag } from '../lib.mjs';
-import { npmEnv, publish, startArgs, uploadArgs } from '../release.mjs';
+import { npmEnv, publish, releaseSummary, startArgs, uploadArgs } from '../release.mjs';
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), 'npm-publisher-test-'));
 let counter = 0;
@@ -38,7 +39,7 @@ test('single/four/five/six-package batches use actual dependencies and independe
       assert.equal(loaded.packages.length, children.length + 1);
       assert.equal(loaded.packages.at(-1).name, config.main);
       const docs = Object.fromEntries(loaded.packages.map(p => [p.name, initialized()]));
-      assert.ok((await plan(loaded, 'next', read(docs))).every(p => p.action === 'publish'));
+      assert.ok((await plan(loaded, 'special', read(docs))).every(p => p.action === 'publish'));
     } finally { config.packages.splice(0, config.packages.length, ...previous); }
   }
 });
@@ -87,7 +88,7 @@ test('upload batches exact artifacts; start binds checksum and passes safe struc
   assert.ok(upload.includes('--latest=false'));
   assert.ok(!upload.includes('--draft'));
   assert.ok(!upload.some(arg => arg.includes('*')));
-  const start = startArgs('npm-430-b200', 'next', loaded.digest, true);
+  const start = startArgs('npm-430-b200', 'special', loaded.digest, true);
   assert.ok(start.includes(`checksums_sha256=${loaded.digest}`));
   assert.ok(start.includes('dry_run=true'));
   assert.ok(start.includes('publish-ng.yml'));
@@ -111,25 +112,25 @@ test('registry distinguishes 404 from authorization and server errors', async ()
 test('preflight permits identical versions only and refuses latest downgrade, prerelease and wrong main channel', async () => {
   const loaded = await load(await fixture([pkg()])), local = loaded.packages[0];
   const docs = { [local.name]: initialized() };
-  assert.equal((await plan(loaded, 'next', read(docs)))[0].action, 'publish');
-  docs[local.name].versions[local.version] = versionRecord(local); docs[local.name]['dist-tags'].next = local.version;
-  assert.equal((await plan(loaded, 'next', read(docs)))[0].action, 'reuse');
+  assert.equal((await plan(loaded, 'special', read(docs)))[0].action, 'publish');
+  docs[local.name].versions[local.version] = versionRecord(local); docs[local.name]['dist-tags'].special = local.version;
+  assert.equal((await plan(loaded, 'special', read(docs)))[0].action, 'reuse');
   docs[local.name].versions[local.version].dist.integrity = 'sha512-different';
-  await assert.rejects(plan(loaded, 'next', read(docs)), /bytes conflict/);
+  await assert.rejects(plan(loaded, 'special', read(docs)), /bytes conflict/);
   docs[local.name].versions = {}; docs[local.name]['dist-tags'].latest = '5.0.0';
   await assert.rejects(plan(loaded, 'latest', read(docs)), /backwards/);
   docs[local.name].versions[local.version] = versionRecord(local);
-  docs[local.name]['dist-tags'].next = '4.0.0'; await assert.rejects(plan(loaded, 'next', read(docs)), /different next/);
+  docs[local.name]['dist-tags'].special = '4.0.0'; await assert.rejects(plan(loaded, 'special', read(docs)), /different special/);
   await assert.rejects(plan(await load(await fixture([pkg(config.main, {}, { version: '4.30.0-1' })])), 'latest', read(docs)), /Prerelease/);
-  await assert.rejects(plan(loaded, 'next', read({})), /Initialize/);
+  await assert.rejects(plan(loaded, 'special', read({})), /Initialize/);
 });
 test('missing internal child must already resolve on npm; new uninitialized child blocks whole batch', async () => {
   const main = pkg(config.main, { '@agora-js/shared': '^2.0.0' });
   const loaded = await load(await fixture([main]));
-  await assert.rejects(plan(loaded, 'next', read({ [main.name]: initialized() })), /Missing internal/);
-  assert.equal((await plan(loaded, 'next', read({ [main.name]: initialized(), '@agora-js/shared': { versions: { '2.1.0': {} } } })))[0].action, 'publish');
+  await assert.rejects(plan(loaded, 'special', read({ [main.name]: initialized() })), /Missing internal/);
+  assert.equal((await plan(loaded, 'special', read({ [main.name]: initialized(), '@agora-js/shared': { versions: { '2.1.0': {} } } })))[0].action, 'publish');
   const batch = await load(await fixture([pkg(config.main, { '@agora-js/shared': '4.30.0' }), pkg('@agora-js/shared')]));
-  await assert.rejects(plan(batch, 'next', read({ [main.name]: initialized() })), /Initialize/);
+  await assert.rejects(plan(batch, 'special', read({ [main.name]: initialized() })), /Initialize/);
 });
 test('dry run makes no writes; partial publish resumes without republishing already confirmed bytes', async () => {
   const dir = await fixture([pkg(config.main, { '@agora-js/shared': '4.30.0' }), pkg('@agora-js/shared')]), loaded = await load(dir);
@@ -138,21 +139,105 @@ test('dry run makes no writes; partial publish resumes without republishing alre
   const send = p => {
     writes.push(p.name);
     if (p.name === config.main && writes.length === 2) throw new Error('simulated timeout');
-    docs[p.name].versions[p.version] = versionRecord(p); docs[p.name]['dist-tags'].next = p.version;
+    docs[p.name].versions[p.version] = versionRecord(p); docs[p.name]['dist-tags'].special = p.version;
   };
-  await publish(loaded, dir, 'next', true, { read: read(docs), send }); assert.deepEqual(writes, []);
-  await assert.rejects(publish(loaded, dir, 'next', false, { read: read(docs), send }), /timeout/);
-  const recovered = await publish(loaded, dir, 'next', false, { read: read(docs), send });
+  await publish(loaded, dir, 'special', true, { read: read(docs), send }); assert.deepEqual(writes, []);
+  await assert.rejects(publish(loaded, dir, 'special', false, { read: read(docs), send }), /timeout/);
+  const recovered = await publish(loaded, dir, 'special', false, { read: read(docs), send });
   assert.deepEqual(recovered.map(p => p.action), ['reuse', 'publish']);
   assert.deepEqual(writes, ['@agora-js/shared', config.main, config.main]);
-  await publish(loaded, dir, 'next', false, { read: read(docs), send }); assert.equal(writes.length, 3);
+  await publish(loaded, dir, 'special', false, { read: read(docs), send }); assert.equal(writes.length, 3);
 });
 test('post-publish checks exact bytes and dist-tag; preserves OIDC environment and drops token fallback', async () => {
   const dir = await fixture([pkg()]), loaded = await load(dir), docs = { [config.main]: initialized() };
-  await assert.rejects(publish(loaded, dir, 'next', false, { read: read(docs), send: p => { docs[p.name].versions[p.version] = versionRecord(p); }, pause: async () => {} }), /Unexpected next/);
+  await assert.rejects(publish(loaded, dir, 'special', false, { read: read(docs), send: p => { docs[p.name].versions[p.version] = versionRecord(p); }, pause: async () => {} }), /Unexpected special/);
   const env = npmEnv();
   assert.equal(env.NODE_AUTH_TOKEN, undefined); assert.equal(env.NPM_TOKEN, undefined);
   assert.equal(env.ACTIONS_ID_TOKEN_REQUEST_URL, process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
   assert.equal(env.NPM_CONFIG_REGISTRY, config.registry);
   assert.equal(env.NPM_CONFIG_PROVENANCE, 'false');
+});
+
+test('delayed npm visibility is awaited before publishing dependent packages', async () => {
+  const child = '@agora-js/shared';
+  const dir = await fixture([pkg(config.main, { [child]: '4.30.0' }), pkg(child)]), loaded = await load(dir);
+  const docs = Object.fromEntries(loaded.packages.map(p => [p.name, initialized()]));
+  const writes = [], pauses = []; let pending, polls = 0;
+  const delayedRead = async name => {
+    if (name === child && pending && ++polls === 8) {
+      docs[child].versions[pending.version] = versionRecord(pending);
+      docs[child]['dist-tags'].special = pending.version;
+    }
+    return structuredClone(docs[name]);
+  };
+  const send = p => {
+    writes.push(p.name);
+    if (p.name === child) { pending = p; return; }
+    assert.ok(docs[child].versions[p.version], 'dependency must be visible before main publish');
+    docs[p.name].versions[p.version] = versionRecord(p);
+    docs[p.name]['dist-tags'].special = p.version;
+  };
+  await publish(loaded, dir, 'special', false, { read: delayedRead, send, pause: async ms => pauses.push(ms) });
+  assert.deepEqual(writes, [child, config.main]);
+  assert.equal(pauses.length, 7);
+  assert.ok(pauses.every(ms => ms === 10000));
+});
+
+test('accepted but invisible publication stops without resending or publishing dependents', async () => {
+  const child = '@agora-js/shared';
+  const dir = await fixture([pkg(config.main, { [child]: '4.30.0' }), pkg(child)]), loaded = await load(dir);
+  const docs = Object.fromEntries(loaded.packages.map(p => [p.name, initialized()]));
+  const writes = [];
+  await assert.rejects(publish(loaded, dir, 'special', false, {
+    read: read(docs), send: p => writes.push(p.name), pause: async () => {}, visibilityAttempts: 3,
+  }), /npm accepted.*visibility is not confirmed/);
+  assert.deepEqual(writes, [child]);
+});
+
+test('approval review identifies exact artifacts, intended mode, versions and channel without writes', async () => {
+  const dir = await fixture([pkg()]), loaded = await load(dir), docs = { [config.main]: initialized() };
+  const actions = await publish(loaded, dir, 'special', true, {
+    read: read(docs), send: () => assert.fail('review must not publish'),
+    releaseTag: 'npm-4.30.0-b200', requestedDryRun: false,
+  });
+  const summary = releaseSummary(loaded, actions, 'npm-4.30.0-b200', 'special', false);
+  assert.match(summary, /REAL PUBLISH/);
+  assert.match(summary, /npm dist-tag: \*\*special\*\*/);
+  assert.ok(summary.includes(`/releases/tag/npm-4.30.0-b200`));
+  assert.ok(summary.includes(loaded.digest));
+  for (const p of loaded.packages) {
+    assert.ok(summary.includes(`| ${p.name} | ${p.version} | publish |`));
+    assert.ok(summary.includes(`/releases/download/npm-4.30.0-b200/${p.asset}`));
+    assert.ok(summary.includes(p.sha256));
+  }
+  assert.match(releaseSummary(loaded, actions, 'tag', 'special', true), /DRY RUN — no npm publish/);
+});
+
+test('review CLI runs without OIDC even for intended real publication and exports the actual version', async () => {
+  const dir = await fixture([pkg()]), loaded = await load(dir);
+  const bin = path.join(dir, 'bin'); fs.mkdirSync(bin);
+  const ghFile = path.join(bin, 'gh'), npmFile = path.join(bin, 'npm');
+  fs.writeFileSync(ghFile, `#!/usr/bin/env node
+const fs = require('node:fs'), path = require('node:path');
+const args = process.argv.slice(2);
+if (args[0] === 'api') console.log(JSON.stringify({ assets: ${JSON.stringify(['SHA256SUMS', ...loaded.assets].map(name => ({ name })))} }));
+else if (args[0] === 'release' && args[1] === 'download') {
+  const name = args[args.indexOf('--pattern') + 1], target = args[args.indexOf('--dir') + 1];
+  fs.copyFileSync(path.join(${JSON.stringify(dir)}, name), path.join(target, name));
+} else process.exit(1);
+`);
+  const marker = path.join(dir, 'unexpected-publish');
+  fs.writeFileSync(npmFile, `#!/usr/bin/env node\nrequire('node:fs').writeFileSync(${JSON.stringify(marker)}, 'npm invoked'); process.exit(1);\n`);
+  fs.chmodSync(ghFile, 0o755); fs.chmodSync(npmFile, 0o755);
+  const preload = path.join(dir, 'registry.mjs');
+  fs.writeFileSync(preload, `globalThis.fetch = async () => ({ status: 200, ok: true, json: async () => ({ versions: {}, 'dist-tags': {} }) });\n`);
+  const output = path.join(dir, 'outputs.txt'), summary = path.join(dir, 'summary.md');
+  const env = { ...process.env, PATH: `${bin}:${process.env.PATH}`, RUNNER_TEMP: dir, GITHUB_REPOSITORY: config.repository, GITHUB_REF: 'refs/heads/main', GITHUB_EVENT_NAME: 'workflow_dispatch', GITHUB_OUTPUT: output, GITHUB_STEP_SUMMARY: summary };
+  for (const key of ['ACTIONS_ID_TOKEN_REQUEST_URL', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN', 'NPM_TOKEN', 'NODE_AUTH_TOKEN']) delete env[key];
+  const script = path.resolve(import.meta.dirname, '../release.mjs');
+  execFileSync(process.execPath, ['--import', preload, script, 'review', 'npm-4.30.0-b200', 'special', loaded.digest, 'false'], { env, stdio: 'pipe' });
+  assert.equal(fs.readFileSync(output, 'utf8'), 'version=4.30.0\n');
+  assert.match(fs.readFileSync(summary, 'utf8'), /REAL PUBLISH/);
+  assert.equal(fs.existsSync(marker), false);
+  assert.throws(() => execFileSync(process.execPath, [script, 'run', 'npm-4.30.0-b200', 'special', loaded.digest, 'false'], { env, stdio: 'pipe' }), /Missing GitHub OIDC identity/);
 });

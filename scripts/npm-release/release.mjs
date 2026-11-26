@@ -20,9 +20,27 @@ export function npmEnv() {
 }
 const npmPublish = pkg => execFileSync('npm', ['publish', path.resolve(pkg.file), '--registry', config.registry, '--access', 'public', '--tag', pkg.distTag, '--ignore-scripts', '--provenance=false'], { env: npmEnv(), stdio: 'inherit' });
 
-export async function publish(loaded, dir, distTag, dryRun, { read = readRegistry, send = npmPublish, pause = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
+export function releaseSummary(loaded, actions, tag, distTag, dryRun) {
+  const base = `https://github.com/${config.repository}/releases`;
+  const release = `${base}/tag/${safeTag(tag)}`;
+  const asset = name => `${base}/download/${tag}/${encodeURIComponent(name)}`;
+  return [
+    '## Release review', '',
+    `- Mode: **${dryRun ? 'DRY RUN — no npm publish' : 'REAL PUBLISH — after npm-production approval'}**`,
+    `- GitHub Release: [${tag}](${release})`,
+    `- npm dist-tag: **${distTag}**`,
+    `- [SHA256SUMS](${asset('SHA256SUMS')}) SHA256: \`${loaded.digest}\``, '',
+    '| Package | Version | Planned action | Tarball | SHA256 |',
+    '| --- | --- | --- | --- | --- |',
+    ...actions.map(pkg => `| ${pkg.name} | ${pkg.version} | ${pkg.action} | [${pkg.asset}](${asset(pkg.asset)}) | \`${pkg.sha256}\` |`), '',
+    'publish = submit this version to npm; reuse = existing bytes verified, no upload.',
+    'Open the tarball links or Release Assets to inspect the files before approving.', '',
+  ].join('\n');
+}
+
+export async function publish(loaded, dir, distTag, dryRun, { read = readRegistry, send = npmPublish, pause = ms => new Promise(resolve => setTimeout(resolve, ms)), visibilityAttempts = 31, releaseTag, requestedDryRun = dryRun } = {}) {
   const actions = await plan(loaded, distTag, read);
-  const summary = [`| Package | Version | Action (${dryRun ? 'dry run' : distTag}) |`, '| --- | --- | --- |', ...actions.map(pkg => `| ${pkg.name} | ${pkg.version} | ${pkg.action} |`)].join('\n') + '\n';
+  const summary = releaseTag ? releaseSummary(loaded, actions, releaseTag, distTag, requestedDryRun) : [`| Package | Version | Action (${dryRun ? 'dry run' : distTag}) |`, '| --- | --- | --- |', ...actions.map(pkg => `| ${pkg.name} | ${pkg.version} | ${pkg.action} |`)].join('\n') + '\n';
   console.log(summary);
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   if (dryRun) return actions;
@@ -32,16 +50,19 @@ export async function publish(loaded, dir, distTag, dryRun, { read = readRegistr
     if (pkg.action === 'reuse') { console.log(`Reuse ${pkg.name}@${pkg.version}`); continue; }
     send({ ...pkg, file: path.join(dir, pkg.asset), distTag });
     let confirmed = false;
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < visibilityAttempts; attempt++) {
       const remote = await read(pkg.name), version = remote?.versions?.[pkg.version];
       if (version) {
         await sameContent(version, pkg);
         check(remote['dist-tags'][distTag] === pkg.version, `Unexpected ${distTag}: ${pkg.name}`);
         confirmed = true; break;
       }
-      await pause(2000);
+      if (attempt + 1 < visibilityAttempts) {
+        console.log(`Waiting for npm visibility: ${pkg.name}@${pkg.version} (${attempt + 1}/${visibilityAttempts})`);
+        await pause(10000);
+      }
     }
-    check(confirmed, `npm visibility timeout: ${pkg.name}; rerun the same artifacts`);
+    check(confirmed, `npm accepted ${pkg.name}@${pkg.version}, but visibility is not confirmed. Check npm processing status before retrying the same artifacts; remaining packages were not published`);
     console.log(`Published ${pkg.name}@${pkg.version}`);
   }
   return actions;
@@ -51,18 +72,19 @@ async function main() {
   const [command, ...args] = process.argv.slice(2);
   if (command === 'upload' || command === 'start') {
     const [dir, tag, distTag, option] = args;
-    check(command === 'upload' ? args.length === 2 : (args.length === 3 || (args.length === 4 && option === '--dry-run')), 'upload <npm-tgz-dir> <release-tag> | start <npm-tgz-dir> <release-tag> <latest|next|hotfix> [--dry-run]');
+    check(command === 'upload' ? args.length === 2 : (args.length === 3 || (args.length === 4 && option === '--dry-run')), `upload <npm-tgz-dir> <release-tag> | start <npm-tgz-dir> <release-tag> <${config.distTags.join('|')}> [--dry-run]`);
     const loaded = await load(dir);
     if (command === 'upload') console.log(gh(uploadArgs(dir, tag, loaded)));
     else console.log(gh(startArgs(tag, distTag, loaded.digest, option === '--dry-run')) || 'Workflow dispatched. Check Actions → Publish Web SDK to npm.');
     console.log(`SHA256SUMS SHA256: ${loaded.digest}`);
     return;
   }
-  check(command === 'run' && args.length === 4, 'run <release-tag> <dist-tag> <checksums-sha256> <true|false> (GitHub Actions only)');
+  const reviewOnly = command === 'review';
+  check((reviewOnly || command === 'run') && args.length === 4, 'review|run <release-tag> <dist-tag> <checksums-sha256> <true|false> (GitHub Actions only)');
   check(process.env.GITHUB_REPOSITORY === config.repository && process.env.GITHUB_REF === 'refs/heads/main' && process.env.GITHUB_EVENT_NAME === 'workflow_dispatch', 'Run only from the configured repository main workflow_dispatch');
   const [tag, distTag, digest, dryRun] = args;
   check(['true', 'false'].includes(dryRun), 'Invalid dry_run');
-  if (dryRun === 'false') check(process.env.ACTIONS_ID_TOKEN_REQUEST_URL && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN, 'Missing GitHub OIDC identity');
+  if (!reviewOnly && dryRun === 'false') check(process.env.ACTIONS_ID_TOKEN_REQUEST_URL && process.env.ACTIONS_ID_TOKEN_REQUEST_TOKEN, 'Missing GitHub OIDC identity');
   safeTag(tag);
   const release = JSON.parse(gh(['api', `repos/${config.repository}/releases/tags/${tag}`]));
   const assets = release.assets.filter(asset => asset.name === 'SHA256SUMS' || asset.name.endsWith('.tgz'));
@@ -74,7 +96,9 @@ async function main() {
       if (asset.name !== 'SHA256SUMS') safeAsset(asset.name);
       gh(['release', 'download', tag, '--repo', config.repository, '--pattern', asset.name, '--dir', dir]);
     }
-    await publish(await load(dir, digest), dir, distTag, dryRun === 'true');
+    const loaded = await load(dir, digest);
+    await publish(loaded, dir, distTag, reviewOnly || dryRun === 'true', { releaseTag: tag, requestedDryRun: dryRun === 'true' });
+    if (reviewOnly && process.env.GITHUB_OUTPUT) fs.appendFileSync(process.env.GITHUB_OUTPUT, `version=${loaded.packages.find(pkg => pkg.name === config.main).version}\n`);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main().catch(error => { console.error(error.message); process.exitCode = 1; });
