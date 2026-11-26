@@ -1,28 +1,23 @@
-# 方案评估与最终实现
+# 方案评估与简化结果
 
-原设计 v10（2026-11-19）方向正确：保留内网构建、发布最终 tgz、使用 OIDC + Environment 放行、逐包验证和恢复。需要简化的是首期为固定产品额外建设的 profile/schema/独立入口契约体系，而不是制品身份与发布校验。
+保留原设计的 Jenkins 构建隔离、最终 tgz 交接、npm OIDC 和可选 Environment 审批。将发布边界明确放在人工验收之后；GitHub 仅接收并发布既有制品。
 
-| 原设计点 | 实现 | 原因/边界 |
-| --- | --- | --- |
-| profile + manifest schema + exports contract 多层配置 | 一份受评审 config.json + 自动生成 manifest；用代码逐字段/包内容校验 | 当前只有一个入口产品，包白名单、来源目录和通道已经能表达首期需求 |
-| 固定五包 / 按版本阈值 | 主包实际依赖图 + 已批准包目录 | 覆盖单包、四包、五包和独立版本；避免 special 分支错误推断 |
-| 手写 dependsOn / 顺序数组 | tgz 依赖 + semver + 拓扑排序 | 主包最后，禁止环和无关包；新依赖无需改排序代码 |
-| 制品交接 | manifest PR + GitHub immutable Release | 清单在 main 受评审，asset hash 绑定 QA 字节；tag 必须来自 main 历史且含相同清单 |
-| 生产/只读入口多层 workflow | 一个 workflow 的 validate → approval → publish → postcheck；一个 PR 测试 workflow | 默认 publish=false；OIDC 仅 publish job，无 reusable workflow 身份链 |
-| 动态 registry / package target | config 固定 registry、包白名单和 repo；publish 硬性 upstream/main | fork 可做工具测试，不能直接发布生产包 |
-| 每个入口产品配独立浏览器 harness | 读取实际 exports；SDK 入口 createClient，service 子路径导入 | types 和 bundle 所有明确子路径；RTC 产品行为仍由 QA 验收 |
-| 复杂 tag 事务/恢复 | publish --tag；复用主包的 tag 不一致就阻断，由维护者处理 | 减少额外权限和隐式 tag 回退；无多包原子保证 |
-| provenance | 显式 false + 真正 Jenkins 来源记录 | 不将 GitHub 发布误称为 SDK 在 GitHub 构建 |
-| CDN/npm 总发布平台 | 本工具只管 npm，CDN/demo 沿用现有流程 | 缩小范围；原方案中的 CDN hash 对账与业务 QA 由既有 CI/QA 负责，未宣称本工具实现 |
+| 旧实现 | 简化后的实现 |
+| --- | --- |
+| 每批生成 manifest、提交 PR、与 GitHub tag 绑定 | 无 manifest、无每次发布的仓库提交；直接读取 Jenkins 的 tgz 和 SHA256SUMS |
+| 手工填写源码 SHA、Node/pnpm、lock、QA URL | 删除这些发布输入；构建和验收记录留在 Jenkins/QA |
+| 要求 immutable Release | 普通可修改的 Release（不标为 Latest）；支持手动纠错 |
+| 手动按清单逐文件上传 | upload 命令校验本地目录并批量上传 |
+| validate → approval → publish → consumer postcheck | 一个经过 Environment 的 job，只做制品/registry 检查与 publish；无 SDK 编译、pack 或消费者测试 |
+| 完整 TypeScript/bundle/Playwright 发布工具链 | 发布助手只依赖 semver 和 tar |
+| 固定版本区间推断子包 | tgz 中的实际依赖 + 小型包名白名单；对子包独立版本做 semver 检查 |
 
-config 内容 hash 进入清单；改白名单后必须生成新候选和清单。生产重新校验完整清单字节摘要，与 validate 计划相同。环境变量不能覆盖生产 registry/包名，scope/publishConfig 冲突会阻断。Node/npm 固定；Action 用核对过的 SHA。
+SHA256SUMS 是 Jenkins 已生成的标准文件，列出 tgz 的文件名和 SHA256。upload/start 验证它并自动把其摘要作为 workflow 输入。允许修改 GitHub Release，但修改后必须从重新确认的本地文件启动新运行；审批后下载的字节与启动时的字节不符就失败。它不是构建签名，也无法替代 Jenkins 访问控制和人工验收。
 
-全流程按常量 concurrency group 串行，避免重叠包同时修改通道；仍不可能阻止其他 npm 维护者在外部手工发布。因此审批后重查 tag 和外部解析，出现变化中止并重跑。
+只保留与发布直接相关的检查：包名/版本/repository、SHA256、发布 registry、依赖顺序、已有版本内容、latest 防倒退。类型/入口/API/RTC/demo 检查由现有 Jenkins/QA 承担，不因迁移 OIDC 增加新的发布测试体系。
 
-已有版本用完整 tarball integrity 对比后复用；没有 integrity 时下载 npm 官方 tarball 比较 SHA256。远端不存在版本与网络/权限失败分开处理。批外依赖逐个验证可用版本与 integrity，验证计划记录解析；消费者 lock 保存真实完整安装结果。不保证公共 registry 的浮动依赖以后永远不变。
+同名同版本若 npm 内容相同则复用，内容不同则停止。多包没有原子发布；子包先发、主包最后，同文件重试恢复。外部维护者仍能改 npm 通道，发布失败需核实后重试。复用子包不修改其通道；已有主包通道不一致时明确交给维护者修正。
 
-安装镜像仅服务本次候选版本，避免 `^4.19.0` 测试时被更新的公共版本替换。公网 postcheck 则保留 npm 的真实 semver 行为，并记录实际选择的子包版本；不同于精确依赖的历史 caret 可能选择较新子包。
+生产脚本 config 固定指向 AgoraIO/agora-rtc-web 与公网 registry；没有运行时切换生产包的开关。测试演练复制实现到独立仓库并审核自己的 config 与测试包 metadata。发布入口要求配置仓库的 main、workflow_dispatch；npm 逐包 trust 决定 OIDC 发布授权。
 
-边界：禁止发布生命周期脚本、符号链接、非发行文件；暂不支持 wildcard exports、原生二进制或安装期脚本包。未来需要时应先增加相应发行与消费者契约。对 optional/peer 批外依赖采取严格策略：声明的范围必须公网可解析；不自动豁免按平台缺失的包。
-
-管理员设置、CI 集成和真实 OIDC 验收仍需在组织环境执行；不能从本地脚本测试推定已经完成这些配置。详见操作手册与验证记录。
+Release 只存储公开 SDK 包，不存放源码、内网凭据、QA 私密报告或构建环境。GitHub tag 指向发布仓库的 main；SDK 源码及其构建来源沿用 Jenkins 记录。SDK 在 Jenkins 构建，因此关闭发布阶段 provenance，不宣称 GitHub 完成 SDK 构建。

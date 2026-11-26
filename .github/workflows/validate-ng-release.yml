@@ -1,17 +1,16 @@
-name: Validate npm release tools
+name: Test npm publishing tools
 on:
   pull_request:
     paths:
       - '.github/workflows/*ng*.yml'
       - 'scripts/npm-release/**'
-      - '.release/**'
       - 'docs/npm-release/**'
 permissions:
   contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -21,23 +20,4 @@ jobs:
           node-version: '22.15.0'
       - run: |
           npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
-          scripts/npm-release/node_modules/.bin/playwright install --with-deps chromium
           npm test --prefix scripts/npm-release
-      - name: Check changed release manifests
-        run: |
-          node --input-type=module <<'JS'
-          import fs from 'node:fs';
-          import { config, configBytes, check, hash, safeId, safeAsset } from './scripts/npm-release/lib.mjs';
-          // Tarballs are validated by publish-ng's read-only validation; PRs check
-          // manifest identity and hashes without any publishing credentials.
-          for (const file of fs.readdirSync('.release').filter(f => f.endsWith('.json'))) {
-            const m = JSON.parse(fs.readFileSync(`.release/${file}`));
-            safeId(m.releaseId);
-            check(file === `${m.releaseId}.json` && m.releaseTag === `npm-${m.releaseId}`, 'Manifest ID mismatch');
-            check(m.schemaVersion === 1 && m.repository === config.repository, 'Wrong manifest identity');
-            // Old manifests remain audit records after a policy update.
-            check(/^[a-f0-9]{64}$/.test(m.configSha256), 'Missing config digest');
-            check(m.packages?.length > 0, 'Empty manifest');
-            for (const p of m.packages) { safeAsset(p.asset); check(/^[a-f0-9]{64}$/.test(p.sha256) && p.integrity?.startsWith('sha512-'), 'Missing integrity'); }
-          }
-          JS

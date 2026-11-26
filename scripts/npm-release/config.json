@@ -1,15 +1,7 @@
 {
   "repository": "AgoraIO/agora-rtc-web",
   "registry": "https://registry.npmjs.org/",
-  "workflow": "publish-ng.yml",
-  "environment": "npm-production",
   "main": "agora-rtc-sdk-ng",
   "distTags": ["latest", "next", "hotfix"],
-  "packages": {
-    "agora-rtc-sdk-ng": "main",
-    "@agora-js/shared": "shared",
-    "@agora-js/report": "report",
-    "@agora-js/media": "media",
-    "@agora-js/protocol": "protocol"
-  }
+  "packages": ["agora-rtc-sdk-ng", "@agora-js/shared", "@agora-js/report", "@agora-js/media", "@agora-js/protocol"]
 }

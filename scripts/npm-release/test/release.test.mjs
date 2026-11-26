@@ -4,185 +4,155 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { execFileSync, execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import * as tar from 'tar';
-import { config, configBytes, hash, inspect, load, npmEnv, order, plan, registryReader, requestJSON, safeAsset, safeId, write } from '../lib.mjs';
-import { mirror } from '../consumer.mjs';
-import { pack } from '../release.mjs';
+import { checksums, config, hash, inspect, load, order, plan, readRegistry, safeAsset, safeTag } from '../lib.mjs';
+import { npmEnv, publish, startArgs, uploadArgs } from '../release.mjs';
 
-const root = fs.mkdtempSync(path.join(os.tmpdir(), 'release-tests-'));
+const root = fs.mkdtempSync(path.join(os.tmpdir(), 'npm-publisher-test-'));
 let counter = 0;
-const sdkPkg = (name = config.main, dependencies = {}, extra = {}) => ({ name, version: '4.30.0', main: name === config.main ? 'AgoraRTC_N-production.js' : 'index.js', types: 'index.d.ts', repository: { type: 'git', url: 'git+https://github.com/AgoraIO/agora-rtc-web.git' }, dependencies, ...extra });
-async function fixture(pkg = sdkPkg(), files = {}) {
-  const dir = path.join(root, String(++counter)); fs.mkdirSync(path.join(dir, 'package'), { recursive: true });
-  const all = { 'index.js': 'module.exports = { createClient: () => ({join(){}}) };', 'index.d.ts': 'declare const SDK: { createClient(options: {mode: "rtc", codec: "vp8"}): {join(): void} }; export default SDK;', 'AgoraRTC_N-production.js': 'module.exports = { createClient: () => ({join(){}}) };', 'package.json': JSON.stringify(pkg), ...files };
-  for (const [name, value] of Object.entries(all)) {
-    if (value === null) continue;
-    const file = path.join(dir, 'package', name); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, value);
+const pkg = (name = config.main, dependencies = {}, extra = {}) => ({ name, version: '4.30.0', repository: { type: 'git', url: `git+https://github.com/${config.repository}.git` }, dependencies, ...extra });
+const initialized = () => ({ versions: {}, 'dist-tags': {} });
+async function fixture(packages) {
+  const dir = path.join(root, String(++counter)); fs.mkdirSync(dir);
+  for (let i = 0; i < packages.length; i++) {
+    const source = path.join(dir, 'source', String(i)); fs.mkdirSync(path.join(source, 'package'), { recursive: true });
+    fs.writeFileSync(path.join(source, 'package/package.json'), JSON.stringify(packages[i]));
+    fs.writeFileSync(path.join(source, 'package/index.js'), 'module.exports = {};');
+    await tar.c({ cwd: source, file: path.join(dir, `sdk-${i}.tgz`), gzip: true }, ['package']);
   }
-  const asset = `package-${counter}.tgz`;
-  await tar.c({ gzip: true, cwd: dir, file: path.join(root, asset) }, ['package']);
-  const bytes = fs.readFileSync(path.join(root, asset));
-  return { ...pkg, asset, size: bytes.length, sha256: hash(bytes), integrity: `sha512-${hash(bytes, 'sha512', 'base64')}` };
+  fs.writeFileSync(path.join(dir, 'SHA256SUMS'), fs.readdirSync(dir).filter(name => name.endsWith('.tgz')).map(name => `${hash(fs.readFileSync(path.join(dir, name)))}  ./${name}\n`).join(''));
+  return dir;
 }
-function manifest(packages) {
-  const file = path.join(root, `manifest-${++counter}.json`);
-  write(file, { schemaVersion: 1, releaseId: 'test-430', releaseTag: 'npm-test-430', repository: config.repository, configSha256: hash(configBytes), distTag: 'next', source: { repository: 'webrtc/rtcn.js', commit: 'a'.repeat(40), ref: 'release/4.30.0' }, build: { url: 'https://jenkins-api.bj2.agoralab.co/job/QAE/job/webRTC/job/webRTC_Deploy/job/webNG_Release/999/', node: 'v18.16.0', pnpm: '8.6.4', packNode: 'v22.15.0', packNpm: '11.21.0', lockSha256: 'b'.repeat(64) }, qa: { url: 'https://qa.example.test/report/999' }, packages: packages.map(({ name, version, asset, size, sha256, integrity }) => ({ name, version, asset, size, sha256, integrity })) });
-  return file;
-}
-async function registry(documents, callback) {
+const read = docs => async name => structuredClone(docs[name] || null);
+function versionRecord(local) { return { dist: { integrity: local.integrity } }; }
+test.after(() => fs.rmSync(root, { recursive: true, force: true }));
+
+test('single/four/five/six-package batches use actual dependencies and independent versions', async () => {
+  for (const children of [[], ['shared', 'report', 'media'], ['shared', 'report', 'media', 'protocol'], ['shared', 'report', 'media', 'protocol', 'future']]) {
+    const previous = [...config.packages];
+    try {
+      if (children.includes('future')) config.packages.push('@agora-js/future');
+      const deps = Object.fromEntries(children.map(name => [`@agora-js/${name}`, '^2.1.0']));
+      const dir = await fixture([pkg(config.main, deps), ...children.map(name => pkg(`@agora-js/${name}`, {}, { version: '2.1.3' }))]);
+      const loaded = await load(dir);
+      assert.equal(loaded.packages.length, children.length + 1);
+      assert.equal(loaded.packages.at(-1).name, config.main);
+      const docs = Object.fromEntries(loaded.packages.map(p => [p.name, initialized()]));
+      assert.ok((await plan(loaded, 'next', read(docs))).every(p => p.action === 'publish'));
+    } finally { config.packages.splice(0, config.packages.length, ...previous); }
+  }
+});
+test('transitive child dependencies publish first; cycles/duplicates/unrelated/mismatches fail', () => {
+  const shared = pkg('@agora-js/shared'), media = pkg('@agora-js/media', { [shared.name]: shared.version });
+  assert.deepEqual(order([pkg(config.main, { [media.name]: media.version }), media, shared]).map(p => p.name), [shared.name, media.name, config.main]);
+  assert.throws(() => order([]), /main/);
+  assert.throws(() => order([pkg(), pkg()]), /Duplicate/);
+  assert.throws(() => order([pkg(), shared]), /Unrelated/);
+  assert.throws(() => order([pkg(config.main, { [shared.name]: '2.0.0' }), shared]), /Unsatisfied/);
+  assert.throws(() => order([pkg(config.main, { [config.main]: '*' })]), /cycle/);
+  assert.throws(() => order([pkg(config.main, { [shared.name]: '*' }), pkg(shared.name, { [config.main]: '*' })]), /cycle/);
+  assert.throws(() => order([pkg(config.main, { [shared.name]: '2.0.0' }, { peerDependencies: { [shared.name]: '*' } }), shared]), /Unsatisfied/);
+});
+test('checksum file detects changed/missing/unlisted/duplicate files and replacement after start', async () => {
+  const dir = await fixture([pkg()]), loaded = await load(dir);
+  const file = path.join(dir, loaded.assets[0]), sumsFile = path.join(dir, 'SHA256SUMS');
+  const original = fs.readFileSync(file), sums = fs.readFileSync(sumsFile);
+  fs.appendFileSync(file, 'changed'); assert.throws(() => checksums(dir), /mismatch/);
+  fs.writeFileSync(file, original);
+  fs.writeFileSync(sumsFile, sums.toString().replace('  ./', ' *')); assert.equal(checksums(dir).assets.length, 1);
+  assert.throws(() => checksums(dir, loaded.digest), /changed since dispatch/);
+  fs.writeFileSync(sumsFile, sums); fs.writeFileSync(path.join(dir, 'extra.tgz'), 'extra');
+  assert.throws(() => checksums(dir), /do not match/); fs.unlinkSync(path.join(dir, 'extra.tgz'));
+  fs.appendFileSync(sumsFile, sums); assert.throws(() => checksums(dir), /Duplicate/);
+  fs.writeFileSync(sumsFile, 'a'.repeat(64) + '  ../escape.tgz\n'); assert.throws(() => checksums(dir), /Invalid/);
+  fs.writeFileSync(sumsFile, sums); fs.unlinkSync(file); assert.throws(() => checksums(dir), /ENOENT/);
+});
+test('metadata requires explicit package approval, matching repository and public semver dependencies', async () => {
+  for (const metadata of [
+    pkg('unapproved'), pkg(config.main, {}, { repository: undefined }), pkg(config.main, {}, { repository: 'https://github.com/other/repo' }),
+    pkg(config.main, {}, { private: true }), pkg(config.main, {}, { version: 'bad' }),
+    pkg(config.main, { '@agora-js/future': '1.0.0' }), pkg(config.main, { '@agora-js/shared': 'workspace:*' }),
+    pkg(config.main, {}, { publishConfig: { registry: 'https://private.invalid/' } }), pkg(config.main, {}, { publishConfig: { tag: 'latest' } })
+  ]) {
+    const dir = await fixture([metadata]);
+    await assert.rejects(inspect(path.join(dir, 'sdk-0.tgz')));
+  }
+  for (const value of ['../x', '$(id)', '--flag', '', 'a\nb']) assert.throws(() => safeTag(value));
+  for (const value of ['../x.tgz', '--flag.tgz', 'a/b.tgz', 'a*.tgz']) assert.throws(() => safeAsset(value));
+});
+test('upload batches exact artifacts; start binds checksum and passes safe structured gh arguments', async () => {
+  const dir = await fixture([pkg()]), loaded = await load(dir);
+  const upload = uploadArgs(dir, 'npm-430-b200', loaded);
+  assert.deepEqual(upload.slice(0, 5), ['release', 'create', 'npm-430-b200', path.join(dir, 'SHA256SUMS'), path.join(dir, loaded.assets[0])]);
+  assert.ok(upload.includes('--latest=false'));
+  assert.ok(!upload.includes('--draft'));
+  assert.ok(!upload.some(arg => arg.includes('*')));
+  const start = startArgs('npm-430-b200', 'next', loaded.digest, true);
+  assert.ok(start.includes(`checksums_sha256=${loaded.digest}`));
+  assert.ok(start.includes('dry_run=true'));
+  assert.ok(start.includes('publish-ng.yml'));
+  assert.ok(start.includes(config.repository));
+  assert.throws(() => startArgs('x', 'unapproved', loaded.digest, false));
+});
+test('registry distinguishes 404 from authorization and server errors', async () => {
   const server = http.createServer((req, res) => {
-    const name = decodeURIComponent(req.url.slice(1));
-    const value = documents[name];
-    res.writeHead(typeof value === 'number' ? value : value ? 200 : 404, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(typeof value === 'number' ? { error: 'failure' } : value || { error: 'Not found' }));
+    const status = Number(req.url.slice(1));
+    res.writeHead(status, { 'content-type': 'application/json' }); res.end(status === 200 ? '{"versions":{}}' : '{}');
   });
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  try { return await callback(`http://127.0.0.1:${server.address().port}/`); }
-  finally { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
-}
-const initialized = () => ({ versions: {}, 'dist-tags': {} });
-
-test.after(() => fs.rmSync(root, { force: true, recursive: true }));
-test('real tarballs: single package and 4/5 package graphs, with independent child versions', async () => {
-  for (const split of [[], ['shared', 'report', 'media'], ['shared', 'report', 'media', 'protocol']]) {
-    const children = [], dependencies = {};
-    for (const suffix of split) {
-      const name = `@agora-js/${suffix}`;
-      children.push(await fixture(sdkPkg(name, {}, { version: '3.8.1' })));
-      dependencies[name] = '^3.8.0';
-    }
-    const main = await fixture(sdkPkg(config.main, dependencies));
-    const loaded = await load(manifest([...children, main]), root);
-    assert.equal(loaded.packages.length, split.length + 1);
-    assert.equal(loaded.packages.at(-1).name, config.main);
-  }
-});
-test('reject missing files, lifecycle hooks, private source files, private registry and workspace references', async () => {
-  for (const [pkg, files] of [
-    [sdkPkg(config.main, {}, { main: 'missing.js' }), {}],
-    [sdkPkg(config.main, {}, { exports: { '.': './dist/main.js' } }), {}],
-    [sdkPkg(config.main, {}, { scripts: { postinstall: 'echo unsafe' } }), {}],
-    [sdkPkg(config.main, {}, { publishConfig: { registry: 'http://private/' } }), {}],
-    [sdkPkg(config.main, {}, { repository: 'https://github.com/some/fork' }), {}],
-    [sdkPkg(config.main, { '@agora-js/shared': 'workspace:*' }), {}],
-    [sdkPkg(config.main, { '@agora-js/new': '1.0.0' }), {}],
-    [sdkPkg(), { '.env': 'SECRET=example' }],
-    [sdkPkg(), { 'source.ts': 'private implementation' }],
-    [sdkPkg(), { 'AgoraRTC_N-production.full.js': 'export default {}' }],
-    [sdkPkg(), { 'readme.md': '-----BEGIN PRIVATE KEY-----' }]
-  ]) {
-    const f = await fixture(pkg, files);
-    await assert.rejects(inspect(path.join(root, f.asset)));
-  }
-});
-test('reject cycles, duplicate names, mismatched versions, unrelated package and zero main', () => {
-  const child = sdkPkg('@agora-js/shared');
-  assert.throws(() => order([]), /main/);
-  assert.throws(() => order([sdkPkg(), sdkPkg()]), /Duplicate/);
-  assert.throws(() => order([child, sdkPkg()]), /Unrelated/);
-  assert.throws(() => order([sdkPkg(config.main, { [config.main]: '*' })]), /cycle/);
-  assert.throws(() => order([child, sdkPkg(config.main, { [child.name]: '3.0.0' })]), /Unsatisfied/);
-  assert.throws(() => order([child, sdkPkg(config.main, { [child.name]: '3.0.0' }, { peerDependencies: { [child.name]: '*' } })]), /Unsatisfied/);
-  assert.throws(() => order([sdkPkg(config.main, { [child.name]: '*' }), sdkPkg(child.name, { [config.main]: '*' })]), /cycle/);
-});
-test('manifest rejects tampering, invalid IDs, unsafe asset paths and prerelease latest', async () => {
-  const f = await fixture(); const file = manifest([f]);
-  await load(file, root);
-  const original = fs.readFileSync(path.join(root, f.asset));
-  fs.appendFileSync(path.join(root, f.asset), 'tampered');
-  await assert.rejects(load(file, root), /hash mismatch/);
-  fs.writeFileSync(path.join(root, f.asset), original);
-  const modified = JSON.parse(fs.readFileSync(file)); modified.packages[0].dependencies = {}; write(file, modified);
-  await assert.rejects(load(file, root), /metadata must come from tgz/);
-  for (const id of ['../escape', '$(id)', 'x\ny', '']) assert.throws(() => safeId(id));
-  for (const name of ['../p.tgz', '--flag', 'a/b.tgz']) assert.throws(() => safeAsset(name));
-  const pre = await fixture(sdkPkg(config.main, {}, { version: '4.30.0-1' }));
-  const preFile = manifest([pre]); const m = JSON.parse(fs.readFileSync(preFile)); m.distTag = 'latest'; write(preFile, m);
-  await assert.rejects(load(preFile, root), /Prerelease/);
-});
-test('HTTP registry: explicit missing version can publish; 403/503 and uninitialized packages block', async () => {
-  const f = await fixture(), loaded = await load(manifest([f]), root);
-  await registry({ [config.main]: initialized() }, async url => assert.equal((await plan(loaded, root, registryReader(url))).actions[0].action, 'publish'));
-  for (const value of [403, 503, null]) await registry({ [config.main]: value }, async url => assert.rejects(plan(loaded, root, registryReader(url))));
-});
-test('HTTP registry: compare existing integrity, reject conflicts and unresolved external dependency', async () => {
-  const f = await fixture(), loaded = await load(manifest([f]), root);
-  const documents = { [config.main]: { versions: { [f.version]: { dist: { integrity: f.integrity } } }, 'dist-tags': { next: f.version } } };
-  await registry(documents, async url => assert.equal((await plan(loaded, root, registryReader(url))).actions[0].action, 'reuse'));
-  documents[config.main].versions[f.version].dist.integrity = 'sha512-wrong';
-  await registry(documents, async url => assert.rejects(plan(loaded, root, registryReader(url)), /conflict/));
-  const main = await fixture(sdkPkg(config.main, { 'example-external': '^2.0.0' }));
-  await registry({ [config.main]: initialized() }, async url => assert.rejects(plan(await load(manifest([main]), root), root, registryReader(url)), /Unavailable public dependency/));
-});
-test('HTTP registry: external range resolution, latest downgrade, existing main with wrong tag', async () => {
-  const f = await fixture(sdkPkg(config.main, { ext: '^2.0.0' })); const file = manifest([f]);
-  const documents = { [config.main]: initialized(), ext: { versions: { '2.4.0': { dist: { integrity: 'sha512-example' } }, '3.0.0': { dist: { integrity: 'sha512-other' } } } } };
-  await registry(documents, async url => assert.equal((await plan(await load(file, root), root, registryReader(url))).external[0].version, '2.4.0'));
-  const m = JSON.parse(fs.readFileSync(file)); m.distTag = 'latest'; write(file, m);
-  documents[config.main]['dist-tags'].latest = '5.0.0';
-  await registry(documents, async url => assert.rejects(plan(await load(file, root), root, registryReader(url)), /backwards/));
-  m.distTag = 'next'; write(file, m);
-  documents[config.main].versions[f.version] = { dist: { integrity: f.integrity } };
-  await registry(documents, async url => assert.rejects(plan(await load(file, root), root, registryReader(url)), /different next/));
-});
-test('real npm install requests only main and resolves split tgz through declared dependencies', async () => {
-  const child = await fixture(sdkPkg('@agora-js/shared'));
-  const main = await fixture(sdkPkg(config.main, { [child.name]: child.version }));
-  const loaded = await load(manifest([child, main]), root), server = await mirror(loaded, root);
-  const consumer = path.join(root, 'consumer'); fs.mkdirSync(consumer);
-  write(path.join(consumer, 'package.json'), { name: 'isolated-consumer', version: '1.0.0', private: true });
+  const previous = config.registry;
   try {
-    await promisify(execFile)('npm', ['install', `${config.main}@${main.version}`, '--registry', server.base, '--ignore-scripts', '--no-audit', '--no-fund'], { cwd: consumer, env: npmEnv() });
-    const p = JSON.parse(fs.readFileSync(path.join(consumer, 'node_modules/@agora-js/shared/package.json')));
-    assert.equal(p.version, child.version);
-    const rootPkg = JSON.parse(fs.readFileSync(path.join(consumer, 'package.json')));
-    assert.deepEqual(Object.keys(rootPkg.dependencies), [config.main]);
-  } finally { await server.close(); }
+    config.registry = `http://127.0.0.1:${server.address().port}/`;
+    assert.equal(await readRegistry('404'), null);
+    assert.deepEqual(await readRegistry('200'), { versions: {} });
+    for (const status of [401, 403, 429, 503]) await assert.rejects(readRegistry(String(status)), new RegExp(`HTTP ${status}`));
+  } finally { config.registry = previous; server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); }
 });
-test('real npm pack operates in dist and dynamically includes reachable child only', async () => {
-  const sdk = path.join(root, 'sdk'); fs.mkdirSync(sdk);
-  execFileSync('git', ['init', '-q', sdk]);
-  fs.writeFileSync(path.join(sdk, 'pnpm-lock.yaml'), 'lockfileVersion: 6.0\n');
-  execFileSync('git', ['add', '.'], { cwd: sdk });
-  execFileSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.test', 'commit', '-qm', 'fixture'], { cwd: sdk });
-  for (const [dir, pkg] of [['main', sdkPkg()], ['shared', sdkPkg('@agora-js/shared')]]) {
-    const target = path.join(sdk, 'packages', dir, 'dist'); fs.mkdirSync(target, { recursive: true });
-    write(path.join(target, 'package.json'), pkg);
-    fs.writeFileSync(path.join(target, 'AgoraRTC_N-production.js'), 'module.exports = {};');
-    fs.writeFileSync(path.join(target, 'index.js'), 'module.exports = {};');
-    fs.writeFileSync(path.join(target, 'index.d.ts'), 'export {};');
-  }
-  process.env.BUILD_URL = 'https://jenkins-api.bj2.agoralab.co/job/QAE/job/webRTC/job/webRTC_Deploy/job/webNG_Release/999/';
-  process.env.QA_REPORT_URL = 'https://qa.example.test/999';
-  process.env.BUILD_BRANCH = 'release/4.30.0';
-  process.env.SDK_BUILD_NODE = 'v18.16.0';
-  process.env.SDK_BUILD_PNPM = '8.6.4';
-  const m = await pack(sdk, path.join(root, 'packed'), 'fixture-430', 'next');
-  assert.equal(m.packages.length, 1); assert.equal(m.packages[0].name, config.main);
+test('preflight permits identical versions only and refuses latest downgrade, prerelease and wrong main channel', async () => {
+  const loaded = await load(await fixture([pkg()])), local = loaded.packages[0];
+  const docs = { [local.name]: initialized() };
+  assert.equal((await plan(loaded, 'next', read(docs)))[0].action, 'publish');
+  docs[local.name].versions[local.version] = versionRecord(local); docs[local.name]['dist-tags'].next = local.version;
+  assert.equal((await plan(loaded, 'next', read(docs)))[0].action, 'reuse');
+  docs[local.name].versions[local.version].dist.integrity = 'sha512-different';
+  await assert.rejects(plan(loaded, 'next', read(docs)), /bytes conflict/);
+  docs[local.name].versions = {}; docs[local.name]['dist-tags'].latest = '5.0.0';
+  await assert.rejects(plan(loaded, 'latest', read(docs)), /backwards/);
+  docs[local.name].versions[local.version] = versionRecord(local);
+  docs[local.name]['dist-tags'].next = '4.0.0'; await assert.rejects(plan(loaded, 'next', read(docs)), /different next/);
+  await assert.rejects(plan(await load(await fixture([pkg(config.main, {}, { version: '4.30.0-1' })])), 'latest', read(docs)), /Prerelease/);
+  await assert.rejects(plan(loaded, 'next', read({})), /Initialize/);
 });
-test('complete consumer: clean main-only install, TypeScript, bundle and real browser createClient', async () => {
-  const f = await fixture(), file = manifest([f]), report = path.join(root, 'browser-consumer.json');
-  await promisify(execFile)(process.execPath, [new URL('../consumer.mjs', import.meta.url).pathname, file, root, report, 'candidate'], { env: process.env, maxBuffer: 8 * 1024 * 1024 });
-  const evidence = JSON.parse(fs.readFileSync(report));
-  assert.equal(evidence.status, 'passed');
-  assert.equal(evidence.types, 'passed');
-  assert.equal(evidence.entrypoints[0].browser, 'createClient passed');
+test('missing internal child must already resolve on npm; new uninitialized child blocks whole batch', async () => {
+  const main = pkg(config.main, { '@agora-js/shared': '^2.0.0' });
+  const loaded = await load(await fixture([main]));
+  await assert.rejects(plan(loaded, 'next', read({ [main.name]: initialized() })), /Missing internal/);
+  assert.equal((await plan(loaded, 'next', read({ [main.name]: initialized(), '@agora-js/shared': { versions: { '2.1.0': {} } } })))[0].action, 'publish');
+  const batch = await load(await fixture([pkg(config.main, { '@agora-js/shared': '4.30.0' }), pkg('@agora-js/shared')]));
+  await assert.rejects(plan(batch, 'next', read({ [main.name]: initialized() })), /Initialize/);
 });
-test('partial release recovery plans reuse only confirmed bytes and publish remaining packages', async () => {
-  const child = await fixture(sdkPkg('@agora-js/shared'));
-  const main = await fixture(sdkPkg(config.main, { [child.name]: child.version }));
-  const loaded = await load(manifest([child, main]), root);
-  const documents = { [child.name]: initialized(), [main.name]: initialized() };
-  await registry(documents, async url => {
-    const before = await plan(loaded, root, registryReader(url));
-    assert.deepEqual(before.actions.map(a => a.action), ['publish', 'publish']);
-    documents[child.name].versions[child.version] = { dist: { integrity: child.integrity } };
-    documents[child.name]['dist-tags'].next = child.version;
-    const resumed = await plan(loaded, root, registryReader(url));
-    assert.deepEqual(resumed.actions.map(a => a.action), ['reuse', 'publish']);
-    documents[child.name].versions[child.version].dist.integrity = 'sha512-other';
-    await assert.rejects(plan(loaded, root, registryReader(url)), /conflict/);
-  });
+test('dry run makes no writes; partial publish resumes without republishing already confirmed bytes', async () => {
+  const dir = await fixture([pkg(config.main, { '@agora-js/shared': '4.30.0' }), pkg('@agora-js/shared')]), loaded = await load(dir);
+  const docs = Object.fromEntries(loaded.packages.map(p => [p.name, initialized()]));
+  const writes = [];
+  const send = p => {
+    writes.push(p.name);
+    if (p.name === config.main && writes.length === 2) throw new Error('simulated timeout');
+    docs[p.name].versions[p.version] = versionRecord(p); docs[p.name]['dist-tags'].next = p.version;
+  };
+  await publish(loaded, dir, 'next', true, { read: read(docs), send }); assert.deepEqual(writes, []);
+  await assert.rejects(publish(loaded, dir, 'next', false, { read: read(docs), send }), /timeout/);
+  const recovered = await publish(loaded, dir, 'next', false, { read: read(docs), send });
+  assert.deepEqual(recovered.map(p => p.action), ['reuse', 'publish']);
+  assert.deepEqual(writes, ['@agora-js/shared', config.main, config.main]);
+  await publish(loaded, dir, 'next', false, { read: read(docs), send }); assert.equal(writes.length, 3);
+});
+test('post-publish checks exact bytes and dist-tag; preserves OIDC environment and drops token fallback', async () => {
+  const dir = await fixture([pkg()]), loaded = await load(dir), docs = { [config.main]: initialized() };
+  await assert.rejects(publish(loaded, dir, 'next', false, { read: read(docs), send: p => { docs[p.name].versions[p.version] = versionRecord(p); }, pause: async () => {} }), /Unexpected next/);
+  const env = npmEnv();
+  assert.equal(env.NODE_AUTH_TOKEN, undefined); assert.equal(env.NPM_TOKEN, undefined);
+  assert.equal(env.ACTIONS_ID_TOKEN_REQUEST_URL, process.env.ACTIONS_ID_TOKEN_REQUEST_URL);
+  assert.equal(env.NPM_CONFIG_REGISTRY, config.registry);
+  assert.equal(env.NPM_CONFIG_PROVENANCE, 'false');
 });

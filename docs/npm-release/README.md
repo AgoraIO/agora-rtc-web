@@ -1,185 +1,186 @@
 # Web SDK npm 发布操作手册
 
-适用仓库：`AgoraIO/agora-rtc-web`。实现日期：2026-11-26。
+流程只有：**Jenkins 构建、pack 和验证 → 人工验收 → 上传现成 tgz → GitHub OIDC publish**。GitHub 不编译 SDK、不重新 pack、不重跑 demo/类型/浏览器测试。CDN/demo 继续按现有流程交付。
 
-Jenkins 编译和 QA，GitHub 保存最终 tgz 并校验，管理员批准后用 npm OIDC 发布。GitHub 不重新编译或 pack，npm 不配置长期写 token。CDN/demo 继续走现有交付流程。
+## 1. 一次性配置（仓库和 npm 管理员）
 
-## 先了解三个标识
+1. 将本实现合入 `AgoraIO/agora-rtc-web` 的 `main`。发布人员需有该仓库创建 Release、运行 Actions 的权限；仅能写 fork 的账号不能上传到主仓库。
+2. GitHub → Settings → Environments 创建 `npm-production`，Deployment branches 只允许 `main`。建议设置 required reviewers 和 prevent self-review，按组织可用设置禁用绕过审批。没有 reviewer 的同名 Environment 不会提供人工审批；不需要审批时可只设分支限制。
+3. npm 上为**每一个待发布包**设置 Trusted Publisher：Provider = GitHub Actions；Organization/user = `AgoraIO`；Repository = `agora-rtc-web`；Workflow filename = `publish-ng.yml`（仅文件名）；Environment = `npm-production`；Allowed actions 必须勾选 **Allow npm publish**（只允许 npm stage publish 不够）。不需要配置 `NPM_TOKEN`。
+4. 保护 GitHub `main`，发布脚本改动先通过 PR。先完成下文测试仓库演练，再配置生产包。新 Trusted Publisher 配置须在 **2 天内首次成功发布**，过期则删除配置并重新创建。
 
-| 标识 | 示例 | 用途 |
+**不要求启用 Release immutability**。它会锁住已发布 Release 的资产及关联 Git tag，确实会妨碍手动纠错。此流程使用普通 Release 存放制品，不标记为 Latest。上传命令会自动上传齐所有文件并发布 GitHub Release，不增加草稿确认步骤。
+
+运行环境已在 workflow 配好：GitHub-hosted Ubuntu、Node 22.15.0、npm 11.21.0。SDK 在 Jenkins 继续使用它自己的构建环境。发布 Jenkins 预构建 tgz 时关闭 npm provenance，避免把 GitHub 发布记录当作 SDK 构建证明。
+
+## 2. Jenkins 打包、收集和人工验收
+
+Job：<https://jenkins-api.bj2.agoralab.co/job/QAE/job/webRTC/job/webRTC_Deploy/job/webNG_Release/>。
+
+Jenkins 维护文件是 `docker_build` 仓库的 `jenkins/test/webRTC_test/webRTC_deploy/release/JenkinsFile`。本地 `websdk` 分支提交 `e6f2310` 已包含打包与归档修改；该事实不代表在线 Job 已经运行此提交。
+
+新增的 `Pack npm Release Candidates` 在 Build 后完成：
+
+- 遍历实际存在的 `rtcn/packages/*/dist/package.json`，只收集 `agora-rtc-sdk-ng` 和 `@agora-js/*`。
+- **进入每个 dist 目录执行** `npm pack --ignore-scripts --pack-destination "$WORKSPACE/release/agora/npm-tgz"`，不在 SDK 源码根目录 pack。
+- 将本次 tgz 和 `SHA256SUMS` 归档；Jenkins 安装验证复用同一批 tgz，不重复 pack。
+
+构建结束后，在该次 Build → Artifacts 中检查以下目录：
+
+```text
+release/agora/
+├── npm-tgz/                    ← 上传 GitHub 的唯一目录
+│   ├── agora-rtc-sdk-ng-4.30.0.tgz
+│   ├── agora-js-shared-4.30.0.tgz     # 以该次实际产物为准
+│   ├── agora-js-report-4.30.0.tgz
+│   ├── agora-js-media-4.30.0.tgz
+│   ├── agora-js-protocol-4.30.0.tgz
+│   └── SHA256SUMS
+├── npm/<main、shared 等>/       ← 展开的 npm 包，方便查看，不上传
+└── cdn/                        ← CDN 文件和标准 demo zip，沿用现有交付
+test/                           ← Full/min/webpack 验证 demo 等
+```
+
+单包老版本可能只有主包；较新版本有多个子包。实际 scope 是 **`@agora-js/shared`、`@agora-js/report`、`@agora-js/media`、`@agora-js/protocol`**。无需按 SDK 版本号手选包，发布器会读取 tgz 中的依赖。
+
+QA 在 Jenkins 成功后，用本次 demo 和产物按现有流程验收。**验收通过才进入下面的发布步骤**。失败构建即使已有归档，也不能据此发布。不要在本地重新打包来替换已验收 tgz。
+
+## 3. 下载已经验收的 tgz
+
+打开对应 Build → Artifacts → `release/agora/npm-tgz/`，下载该目录的所有文件（Jenkins 页面可用“所有文件打包下载”/zip）。也可访问该构建的目录 zip 地址，下面的 `200` 只是示例：
+
+```text
+https://jenkins-api.bj2.agoralab.co/job/QAE/job/webRTC/job/webRTC_Deploy/job/webNG_Release/200/artifact/release/agora/npm-tgz/*zip*/npm-tgz.zip
+```
+
+解压到本地。下文假定在仓库目录下得到了 `./npm-tgz/`，其中直接包含 `*.tgz` 和 `SHA256SUMS`；若 zip 多了一层目录，使用实际路径。不要把 CDN、demo 或其他构建的包混进这个目录。
+
+在 macOS 可先校验下载是否完整（上传工具也会自动执行相同检查）：
+
+```bash
+(cd ./npm-tgz && shasum -a 256 -c SHA256SUMS)
+```
+
+Linux 使用 `sha256sum -c SHA256SUMS`。所有条目都应显示 `OK`。如果出现缺文件/校验失败，重新下载同一次构建的完整目录。
+
+## 4. 批量上传 GitHub（第一条命令）
+
+进入包含本实现的 `agora-rtc-web` 工作目录；首次使用或脚本依赖更新后执行：
+
+```bash
+gh auth login
+npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
+```
+
+这条 `npm ci` **仅安装发布助手的两个依赖 semver/tar**，不构建 SDK，也不是重新执行 Jenkins。已登录 gh 可跳过登录。
+
+以 `4.30.0`、Jenkins build `200` 为例（全部是示例值）：
+
+```bash
+node scripts/npm-release/release.mjs upload ./npm-tgz npm-4.30.0-b200
+```
+
+命令自动校验文件、读取包名/版本/依赖，然后创建普通 GitHub Release（不标为 Latest），一次上传 `SHA256SUMS` 和该目录的全部 tgz。不需要手动逐个上传，不需要 manifest，不需要每次修改仓库或创建发布 PR。输出 Release 地址与校验文件摘要。
+
+`npm-4.30.0-b200` 是本 GitHub 仓库的 Release tag 名，用来区分同版本的不同构建；它不决定 npm 版本，不要求内网 SDK 有同名 tag。可以换为其他唯一名称。仓库保持默认允许修改 Release/tag 的设置即可。创建 Release 时指定 main 为目标，不会把内网 rtcn.js 的 tag 推上来。
+
+已存在同名 Release 时，工具会报错，避免覆盖原资产。上传中断可能留下不完整草稿，此时删除该草稿后重试，或使用新 tag。纠错方式见第 6 节。
+
+## 5. OIDC 发布（第二条命令）
+
+上传成功、人工验收已完成后执行：
+
+```bash
+node scripts/npm-release/release.mjs start ./npm-tgz npm-4.30.0-b200 latest
+```
+
+这条命令会**发起真实 npm 发布**。它自动填写并启动 `main` 分支的 `publish-ng.yml`；不需要自己复制 SHA256 摘要。发布人员的 gh 登录只用于上传与启动 Actions，npm 使用 runner 的 OIDC 身份。
+
+若想先查看发布计划，最后加 `--dry-run`，确认后去掉该选项再执行：
+
+```bash
+node scripts/npm-release/release.mjs start ./npm-tgz npm-4.30.0-b200 next --dry-run
+```
+
+前往 GitHub → Actions → **Publish Web SDK to npm**：
+
+1. 如配置了 Environment reviewers，等待管理员在运行页点击 Review deployments 批准。单 job 设计下 dry run 也经过此审批。
+2. 查看包列表与 `publish` / `reuse` 计划。工具只检查文件摘要、包身份、依赖顺序和 npm 已有版本状态，这些是发布前的快速检查，不是 SDK CI。
+3. 新子包先发，主包最后；成功后会回读 npm 的版本和 dist-tag。运行全绿后，本次 npm 发布完成。
+
+也可在 Actions 页面手动 Run workflow：Branch 选 `main`；`release_tag` 填上一步名称；`dist_tag` 填目标通道；`checksums_sha256` 填 upload 命令输出的 **SHA256SUMS SHA256**；实际发布时取消 `dry_run`。摘要用来发现上传资产在启动后被替换，**不是 manifest，也不需要保存进 Git**。
+
+| 标识 | 决定什么 | 示例 |
 | --- | --- | --- |
-| SDK 版本 | `4.30.0` | 来自 tgz 的 package.json；子包可以独立版本 |
-| release ID | `4.30.0-b200` | 每次候选唯一；对应 `.release/4.30.0-b200.json` |
-| GitHub Release tag | `npm-4.30.0-b200` | 指向本 GitHub 仓库中含清单的提交；与内网 SDK tag 无关 |
+| tgz 的 package.json version | npm 中不可覆盖的包版本 | `4.30.0` |
+| npm dist-tag | 安装通道，可由维护者调整 | `latest` / `next` / `hotfix` |
+| GitHub Release tag | GitHub 上存放本批文件的位置，可按仓库规则修改 | `npm-4.30.0-b200` |
 
-文中的版本、build 200、QA URL 均为示例，执行时替换为真实值。`latest` 只接受正式 semver；`4.24.8-1`、`4.19.0-special.1` 等带 `-` 的版本在 npm semver 中都是 prerelease，应选择 `hotfix` 或 `next`。
+`latest` 用于正式版本；`4.24.8-1` 等带 prerelease 部分的版本用 `next` 或 `hotfix`。补发旧正式版本时也使用独立通道，工具会阻止把 `latest` 倒退。**dry run 只验证发布计划，不发送 npm publish，不能证明 OIDC 已配置成功**。
 
-实际子包名为 **`@agora-js/shared`、`@agora-js/report`、`@agora-js/media`、`@agora-js/protocol`**。不是 `@agora/js-*`。公网已发布元数据显示：4.18.2 单主包，4.19.0 四包，4.24.3 五包。发布器不硬编码这些边界，始终读取最终 tgz 的依赖。注意已发布的 4.18.2 tgz 没有 repository 字段，历史分支补发前需由研发补齐构建 metadata，不能直接复用该旧 tgz 走 OIDC。
+## 6. 发错或中途失败怎么处理
 
-## 一次性设置：GitHub 管理员
-
-1. 将本实现通过 PR 合入 **主仓库 main**。fork 用于提交和工具测试；生产 workflow 在 fork 中会跳过。
-2. 仓库 Settings → General → Releases 启用 **Release immutability**。设置后新发布的 Release 才受保护。创建候选时先用 draft 上传齐全，检查后再发布冻结。
-3. Settings → Environments → 新建 **`npm-production`**：配置 required reviewers，启用 prevent self-review，禁用绕过审批（界面/组织套餐允许时）；Deployment branches 仅允许 `main`。Environment 同名但未配置 reviewer，并不能提供审批。
-4. 保护 `main`：必须走 PR，至少一位维护者批准，通过 `Validate npm release tools` 检查。把发布脚本、两个 workflow、`config.json`、`.release/` 纳入团队现有 CODEOWNERS/规则保护。应由管理员填写真实、有效且有仓库权限的团队名，不在代码里虚构 owner。
-5. Actions 允许执行本项目中按 SHA 固定的 checkout/setup-node/upload/download-artifact。保留 evidence artifacts，生产运行结果归档到团队长期存储。
-
-发布流程只需要 `contents: read`；只有 publish job 申请 `id-token: write`。Environment 审批在 validate 成功之后、publish job 开始之前发生。
-
-## 一次性设置：npm 管理员（逐包操作）
-
-对每个会由本 workflow 发布的包，在 npmjs.com 包 Settings → Trusted Publisher 新建 GitHub Actions 配置：
-
-| 字段 | 必须填写 |
+| 情况 | 操作 |
 | --- | --- |
-| Organization/user | `AgoraIO` |
-| Repository | `agora-rtc-web` |
-| Workflow filename | `publish-ng.yml`，不带目录 |
-| Environment | `npm-production` |
-| Allowed actions | 开启 **直接 `npm publish`** |
+| 上传错文件，npm 尚未发布 | 从已验收 Jenkins 构建重新下载；使用新的 Release tag 重新 upload/start 最直接。也可以在 GitHub 编辑/删除普通 Release 及其资产后重建同名 Release，再从正确本地目录 start；不要求 immutable |
+| GitHub tag 名称填错 | 修改/重建普通 Release/tag 或使用新 tag；npm 包版本仍只由 tgz 决定，改 GitHub tag 不会改 npm |
+| 子包已发布、主包未发布 | 保持同一批 Jenkins 文件，再执行同一个 start；已存在且内容相同的版本显示 reuse，继续发布其余包 |
+| 请求超时，不确定 npm 是否收到了 | 先查看 npm/Actions 结果，再用相同文件重试；工具重新查 registry，网络/403/5xx 不会当作“版本不存在” |
+| npm 同名同版本已存在但内容不同 | 停止。不能覆盖；研发生成新版本，经 Jenkins 和 QA 后重新发布 |
+| 版本已发布，但 npm 通道错了 | npm 维护者登录后明确执行 `npm dist-tag add 包名@版本 通道 --registry=https://registry.npmjs.org/`，核对通道指向。发布器不通过重发相同版本隐式修正通道；复用子包也不会改其原通道 |
+| OIDC 401/403 | 核对报错包自己的 repo/workflow/environment、main 分支、GitHub-hosted runner、首次验证是否过期；修配置后重试。不要加生产 NPM_TOKEN 绕过 |
+| 启动后替换了 GitHub 资产 | 本次校验失败；用人工确认过的本地目录重新 upload/start。不要对着新资产沿用旧运行盲目重试 |
 
-当前实现不自动运行 `npm dist-tag add/rm`，不需要为日常流程额外授权 dist-tag 管理。npm 发布新版本时通过 `npm publish --tag` 设置通道。
+npm 多包发布不是原子事务。外部维护者仍可能同时发布或改 npm 通道；此时先核实再恢复。无论 GitHub tag 能否修改，**已经发布的 npm 同名同版本都不能覆盖**。
 
-包必须已在公网 npm 初始化且维护者拥有权限。新增包首次初始化/首发由 npm 管理员按组织政策完成；随后绑定 OIDC。不要用已有生产包试发实验版本。建议先在单独测试仓库和专用测试包演练 OIDC 的允许/拒绝、Environment 审批和失败恢复；测试配置的 repository 必须与测试包的 repository metadata 一致。
+## 7. 独立测试仓库和测试包演练（生产迁移前必须完成）
 
-官方要求 Node ≥22.14.0、npm ≥11.5.1、GitHub-hosted runner；本实现固定 **Node 22.15.0 + npm 11.21.0**，publish 时还会断言准确版本。Trusted Publisher 新建后首次成功发布有 **2 天时限**，在真实发布窗口配置；过期就删除后重建，不为防过期临时发生产版本。验证迁移成功后，再收口旧 npm token 和旧自动发布入口。
+准备一个独立公开测试仓库，例如 `YOUR-ORG/websdk-npm-oidc-test`，把本实现提交到它的 `main`。准备自己有发布权限的两个公开 npm 测试包，例：`@YOUR-SCOPE/oidc-sdk-test` 和 `@YOUR-SCOPE/oidc-dep-test`；以下名称都替换为自己实际的名称。
 
-## Jenkins 接入（CI 维护者执行）
+测试包最小 metadata 示例（分别保存到 `rehearsal/sdk/package.json` 和 `rehearsal/dep/package.json`，先用 `0.0.0` 初始化，再改为下列 `0.0.1`；将 scope 和仓库改成真实值）：
 
-目标 job：`QAE/webRTC/webRTC_Deploy/webNG_Release`。
-
-当前配置来自 `accs/docker_build.git`：`jenkins/test/webRTC_test/webRTC_deploy/release/JenkinsFile`。截至 2026-11-26，最近成功构建 #176 已归档 demo/UMD/主包 tgz；子包 pack 进入 `npm-integration/local`，现有归档规则未包含这些子包 tgz。
-
-按 [Jenkins 和 rtcn.js 修改说明](SDK-CHANGES.md) 修改该流水线。可直接参考 [Jenkins stage 片段](jenkins-stage.groovy)。本次没有修改在线 Jenkins job 或 rtcn.js。
-
-关键要求：**只 pack 一次**，QA 测试与 GitHub 发布使用同一批 tgz。完整归档 `manifest.json` 和清单列出的每个 tgz。保留 demo/CDN zip，以及实际安装时的 lockfile 和 QA 报告。不要在 QA 后重新 `npm pack`。
-
-也可以在已构建的 Jenkins workspace 手动生成候选（以下在发布工具仓库根目录执行）：
-
-```bash
-npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
-export BUILD_URL='https://jenkins-api.bj2.agoralab.co/job/QAE/job/webRTC/job/webRTC_Deploy/job/webNG_Release/200/'
-export BUILD_BRANCH='release/4.30.0'
-export SDK_BUILD_NODE='v18.16.0'  # 填该次实际构建版本
-export SDK_BUILD_PNPM='8.6.4'     # 填该次实际构建版本
-export QA_REPORT_URL='https://YOUR-QA-SERVICE/reports/websdk-build-200'
-export RELEASE_LOCK_FILE='/path/to/evidence/pnpm-lock.effective.yaml'
-node scripts/npm-release/release.mjs pack /path/to/rtcn /path/to/new-candidate-dir 4.30.0-b200 latest
+```json
+{"name":"@your-scope/oidc-sdk-test","version":"0.0.1","main":"index.js","repository":{"type":"git","url":"git+https://github.com/YOUR-ORG/websdk-npm-oidc-test.git"},"dependencies":{"@your-scope/oidc-dep-test":"0.0.1"}}
 ```
 
-清单分别记录 SDK 构建的 Node/pnpm 和 pack 的 Node/npm，不能把打包工具版本冒充 SDK 编译工具版本。
-
-`/path/to/new-candidate-dir` 必须不存在，避免混入旧产物。`QA_REPORT_URL` 指向本次候选的固定报告位置，QA 后核对报告确实通过并记录清单 hash。`RELEASE_LOCK_FILE` 是 install 后、还原 lockfile 前保存的实际文件；如果构建严格 frozen 且未修改 lock，则可以省略，用 SDK 根目录 pnpm-lock.yaml。
-
-工具从主包开始递归收集可达的已批准子包，忽略无依赖关系的 demo/plugin。缺少子包 dist 时，必须通过后续公网依赖可用性检查和消费者安装才能复用；未批准的 `@agora-js/*` 依赖直接阻断。
-
-## 每次发布：四步
-
-### 1. Jenkins 构建，QA 验收最终候选
-
-下载 Jenkins 归档的整个候选目录，假设放在 `/path/to/candidate`，里面包含 `manifest.json` 和 tgz。在发布仓库执行：
-
-```bash
-npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
-node scripts/npm-release/release.mjs check /path/to/candidate/manifest.json /path/to/candidate
-node scripts/npm-release/release.mjs plan /path/to/candidate/manifest.json /path/to/candidate /path/to/plan.json
-scripts/npm-release/node_modules/.bin/playwright install chromium
-node scripts/npm-release/consumer.mjs /path/to/candidate/manifest.json /path/to/candidate /path/to/consumer.json candidate
+```json
+{"name":"@your-scope/oidc-dep-test","version":"0.0.1","main":"index.js","repository":{"type":"git","url":"git+https://github.com/YOUR-ORG/websdk-npm-oidc-test.git"}}
 ```
 
-自动验证包括：tar/入口/types/exports 检查，真实 semver 和拓扑排序，整批已发布内容/批外依赖检查；隔离安装镜像中**仅申请安装主包**，验证子包依赖确实可解析；TypeScript、浏览器打包、Chromium 中创建客户端；service 子路径导入。镜像只读，没有 publish 端点。安装期禁用包脚本。
+两个 `index.js` 都可以写 `module.exports = {};`。测试主包初始化 `0.0.0` 时，将其子包依赖也设为 `0.0.0`，先初始化子包。
 
-这不代替 RTC 入会、采集、推拉流、兼容性与业务 QA。QA 需使用这一批 tgz 和 demo 完成相应测试，报告注明 manifest SHA256、SDK source SHA、Jenkins build。
+1. 在测试仓库 `config.json` 把 repository 改为测试仓库；main 改为测试主包名；packages 改为这两个测试包名。registry 保持公网。测试包名不要沿用生产包名。workflow 文件名和 Environment 继续使用 `publish-ng.yml` / `npm-production`，因此无需改发布代码。
+2. 用个人已授权的 npm 登录先各发布一次 `0.0.0`（使用 `--tag next --access public`），确保包已存在。只对测试包执行；测试目录 package.json 设置正确 name、公开 repository、version 和 `main: index.js`，创建简单 `index.js`，scoped 包用 `--access public`。然后在每个测试包设置绑定**测试仓库**的 Trusted Publisher，并勾选 Allow npm publish。
+3. 新建测试候选 `0.0.1`：测试主包 `dependencies` 精确依赖测试子包 `0.0.1`；两者的 repository 都指向测试仓库。下面给出打包目录和命令，不使用 rtcn.js 或生产包：
 
-### 2. 提交清单 PR，合入 main
+   ```text
+   rehearsal/
+     sdk/package.json     # name=测试主包；version=0.0.1；dependencies={测试子包:0.0.1}
+     sdk/index.js
+     dep/package.json     # name=测试子包；version=0.0.1
+     dep/index.js
+     npm-tgz/
+   ```
 
-```bash
-git switch -c release/4.30.0-b200
-cp /path/to/candidate/manifest.json .release/4.30.0-b200.json
-git add .release/4.30.0-b200.json
-git commit -m 'chore(release): prepare Web SDK 4.30.0-b200'
-git push origin HEAD
-gh pr create --repo AgoraIO/agora-rtc-web --base main --head YOUR-FORK-OWNER:release/4.30.0-b200 \
-  --title 'chore(release): prepare Web SDK 4.30.0-b200' \
-  --body 'Jenkins build 200；最终 tgz 已完成 QA；请核对清单、来源、包列表、hash 和通道。'
-```
+   ```bash
+   mkdir -p rehearsal/npm-tgz
+   (cd rehearsal/dep && npm pack --ignore-scripts --pack-destination ../npm-tgz)
+   (cd rehearsal/sdk && npm pack --ignore-scripts --pack-destination ../npm-tgz)
+   (cd rehearsal/npm-tgz && shasum -a 256 ./*.tgz > SHA256SUMS)
+   node scripts/npm-release/release.mjs upload ./rehearsal/npm-tgz oidc-test-001
+   node scripts/npm-release/release.mjs start ./rehearsal/npm-tgz oidc-test-001 next --dry-run
+   node scripts/npm-release/release.mjs start ./rehearsal/npm-tgz oidc-test-001 next
+   ```
 
-审核重点：正确 QA 报告与 build、主包/子包版本、配置摘要、tgz hash、dist-tag。只把 JSON 清单提交 git，tgz/demo 留在制品存储与 Release。历史清单保留为审计记录，不能随 config 更新批量重写。
+4. 测试 Environment 设置另一个 reviewer。确认审批前 npm 没有新版本，批准后两个包按顺序发布。首次成功发布在两天时限内完成。
+5. **允许/拒绝验证**：对新的 `0.0.2` 测试候选，先将子包的 npm trust 故意绑定错误 repository，启动真实发布，应在子包发布时拒绝且主包未发；分别改为错误 workflow filename、错误 Environment 重复此验证。每次修复配置并确认 dry run 无法代替这个负向发布测试。负向验证只用测试包。
+6. **失败恢复验证**：子包 trust 恢复正确，主包 trust 保持错误。重新 start，子包成功、主包失败；修正主包 trust，再以相同文件 start，应显示子包 reuse、主包 publish。全部成功后再次 start，均 reuse 且不再写入。还可在审批等待时替换 tgz，确认校验拒绝。
+7. 保存这些 Actions 运行链接和 npm 版本记录；通过后才为真实包配置 trust 并迁移生产。新增生产子包也要单独初始化、配置 trust，并把包名加到 packages 白名单；依赖顺序由包内容推导，无需新增顺序脚本。
 
-### 3. 在主仓库创建并冻结 GitHub Release
+## 8. 维护边界和参考
 
-清单 PR 合并后，同步 upstream main，再执行：
+rtcn.js 无提交权限，本次只在 [SDK-CHANGES.md](SDK-CHANGES.md) 写清它需要保证的发行 metadata；没有修改源码。Jenkins 现有打包阶段已单独落在 docker_build，本仓库不再复制一份容易过期的 Groovy 示例。
 
-```bash
-git fetch upstream main
-git switch main
-git merge --ff-only upstream/main
-node scripts/npm-release/release.mjs stage .release/4.30.0-b200.json /path/to/candidate
-```
+本地验证与尚未上线的事项见 [VALIDATION.md](VALIDATION.md)；设计取舍见 [DESIGN.md](DESIGN.md)。本次简化取代旧版的 manifest PR、强制 immutable、手工 source/build/QA 环境变量和消费者多 job 流程。
 
-该命令使用当前 GitHub 仓库 HEAD 创建 draft Release，tag 为 `npm-4.30.0-b200`；精确上传 `manifest.json` 和清单中列出的 tgz，不使用目录通配符。执行人需要主仓库 Release 写权限；fork 账号对主仓库仅 READ 时，由管理员/有权限的发布者执行。
-
-在 GitHub Release 页面核对 tag 提交、全部资产与 QA 结果，然后发布 Release。必须确认该 Release 为 **immutable**，不是仅把普通 Release 标题写成“冻结”。资产上传失败时先修复 draft；不可变发布后不能替换。不要在只有一个完整候选时创建多个生产 tag。
-
-### 4. 触发 workflow 并审批
-
-先做一轮只读验证：
-
-```bash
-gh workflow run publish-ng.yml --repo AgoraIO/agora-rtc-web --ref main \
-  -f release_id=4.30.0-b200 -F publish=false
-```
-
-通过后，发起正式运行：
-
-```bash
-gh workflow run publish-ng.yml --repo AgoraIO/agora-rtc-web --ref main \
-  -f release_id=4.30.0-b200 -F publish=true
-```
-
-也可在 Actions → Publish Web SDK to npm → Run workflow 填写 release ID，正式发布时勾选 publish。不要选择 release branch 或 tag 运行。
-
-等待 validate 通过。审批人在该 run 的 Summary 与 `validation-evidence` 中核对 manifest digest、QA、Jenkins、每包 publish/reuse 动作和原通道值，再批准 `npm-production`。
-
-publish job 重新下载不可变制品，复核已批准清单和公网状态，依赖先发，主包最后；每包回读 integrity 和通道。postcheck 无 OIDC，独立从公网只安装主包并做类型/打包/浏览器检查。**三个 job 全通过，才能把 npm 发布记为成功**；CDN/demo 单独核验后才宣布完整 SDK 交付。
-
-## 失败处理与重跑
-
-| 情况 | 处理 |
-| --- | --- |
-| 尚未写 npm | 修正构建/配置/权限；更改制品则换 release ID，重新 QA、清单 PR、冻结和审批 |
-| 子包已成功，后续失败 | 保留原 tgz/清单，修复原因后**重新发起完整 workflow**；会逐包比对已发布字节后复用 |
-| 超时/连接断开 | 写入可能成功；查看 `publication-evidence/publish.json`，重新完整验证，禁止直接跳到后续包 |
-| 同名同版本但字节不同 | 阻断；npm 无法覆盖版本，调查来源后制定新版本方案 |
-| 401/403/429/5xx | 视为查询失败/未知，不当成版本不存在；恢复后重跑 |
-| 已存在主包但目标 tag 不指向它 | 不自动改 tag；由有权限维护者核对后显式修复通道，再完整重跑 |
-| `latest` 比本批版本更新 | 阻断倒退；历史补发改用经评审的其他通道，并生成新清单/候选 |
-| `postcheck` 失败 | 包可能已经全部发布；不得将整次运行描述为“未发布”；调查消费者错误并决定修复版本 |
-| OIDC 404/权限错误 | 检查逐包绑定、大小写、主仓库、准确 workflow 文件名、Environment、direct publish 权限和首次验证时限 |
-| immutable 校验失败 | 在仓库启用 immutability 后创建新的正确候选；不能把旧普通 Release 视为已保护 |
-
-重跑通过 `gh workflow run ...` 发起，不能仅 Re-run failed jobs 跳过消费者校验。脚本保存 publish/reuse/failed-or-uncertain 状态；它不是多包原子事务。不要自动 unpublish、批量改版本或回滚通道。
-
-本实现刻意不自动修复 dist-tag。如果组织希望之后自动修复，需单独授权 OIDC dist-tag 并评审行为；官方当前要求 npm 11.x ≥11.21.0 或 12.x ≥12.2.0。人工应急可以执行 `npm dist-tag add <name>@<version> <tag>`，保留审批和前后值，按 npm 当时要求完成身份验证/2FA。
-
-## 新增依赖包
-
-1. 在 `scripts/npm-release/config.json` 的 packages 中增加**真实包名 → SDK packages 下目录名**；源代码维护者保证该 dist 能正确打包。
-2. npm 管理员确认包所有权、公开初始化、repository metadata，并逐包绑定相同生产 workflow/Environment。
-3. 增加真实消费者/功能 QA。合入配置后重建候选，使 manifest 的 config hash 匹配。无需修改 workflow、数组顺序或版本阈值。
-4. 如果依赖由其他仓库独立发布，先在公网发布；本发布器只核对 semver 与 integrity，不代管外部包所有权。
-
-## 证据、限制和参考
-
-每次运行下载三组 artifacts：`validation-evidence`、`publication-evidence`、`public-consumer-evidence`。保留来源/制品 digest、消费者 lock、入口验证结果以及逐包动作。GitHub Actions artifact 的保留期限不等于长期备份。
-
-首次实施的实际测试情况见 [验证记录](VALIDATION.md)。未在主仓库真实完成 OIDC/Environment/immutable 和生产发布前，不能把本实现称为已上线。npm/GitHub 管理员配置无法仅靠提交 workflow 文件完成。
-
-首期显式关闭 npm provenance：SDK 实际由 Jenkins 构建，GitHub 是发布执行点。source SHA + build URL + lock hash 是追溯证据，不等于独立的构建真实性证明。CDN/demo hash 与 RTC QA 由现有 Jenkins/QA 记录负责；本工具的冻结清单覆盖 npm tgz，不额外实现 CDN 发布系统。
-
-参考（2026-11-26 核对）：
-
-- [原设计](https://confluence.agoralab.co/pages/viewpage.action?pageId=2058846747)
-- [npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)
-- [GitHub Immutable Releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)
-- [方案评估与简化说明](DESIGN.md)
+参考（2026-11-26 核对）：[npm Trusted Publishing](https://docs.npmjs.com/trusted-publishers/)、[GitHub Immutable Releases](https://docs.github.com/en/code-security/concepts/supply-chain-security/immutable-releases)、[原方案](https://confluence.agoralab.co/pages/viewpage.action?pageId=2058846747)。

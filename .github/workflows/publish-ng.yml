@@ -1,131 +1,55 @@
 name: Publish Web SDK to npm
-run-name: Web SDK ${{ inputs.release_id }} (${{ inputs.publish && 'publish' || 'validate only' }})
+run-name: Web SDK ${{ inputs.release_tag }} → ${{ inputs.dist_tag }} (${{ inputs.dry_run && 'dry run' || 'publish' }})
 on:
   workflow_dispatch:
     inputs:
-      release_id:
-        description: Reviewed .release/<release_id>.json (without extension)
+      release_tag:
+        description: GitHub Release containing the QA-accepted Jenkins tgz files
         required: true
         type: string
-      publish:
-        description: Publish after validation and npm-production approval
+      dist_tag:
+        description: npm distribution tag
+        type: choice
+        options: [latest, next, hotfix]
+        default: next
+      checksums_sha256:
+        description: SHA256SUMS file SHA256 (filled automatically by the start command)
+        required: true
+        type: string
+      dry_run:
+        description: Check artifacts and npm state without publishing (does not test OIDC publish)
         type: boolean
-        default: false
+        default: true
 permissions:
   contents: read
 concurrency:
-  group: websdk-npm-production
+  group: websdk-npm-publish
   cancel-in-progress: false
 jobs:
-  validate:
-    if: github.repository == 'AgoraIO/agora-rtc-web' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '22.15.0'
-      - name: Install fixed verification tools
-        run: |
-          npm install --global npm@11.21.0 --ignore-scripts --registry=https://registry.npmjs.org/
-          npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
-          scripts/npm-release/node_modules/.bin/playwright install --with-deps chromium
-      - name: Verify immutable artifacts and public npm state
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_ID: ${{ inputs.release_id }}
-        run: |
-          node scripts/npm-release/release.mjs download "$RELEASE_ID" .release-work/assets
-          node scripts/npm-release/release.mjs plan .release-work/assets/manifest.json .release-work/assets .release-work/plan.json
-          node scripts/npm-release/consumer.mjs .release-work/assets/manifest.json .release-work/assets .release-work/consumer.json candidate
-      - name: Show approval evidence
-        run: |
-          node --input-type=module <<'JS'
-          import fs from 'node:fs';
-          const p = JSON.parse(fs.readFileSync('.release-work/plan.json'));
-          const lines = ['## npm release plan', `Manifest SHA256: \`${p.manifestSha256}\``, `Jenkins: ${p.build.url}`, `QA: ${p.qa.url}`, `Registry: ${p.registry}; tag: ${p.distTag}`, '', '| Package | Version | Action | Previous tag |', '| --- | --- | --- | --- |'];
-          for (const a of p.actions) lines.push(`| ${a.name} | ${a.version} | ${a.action} | ${a.currentTag || '(none)'} |`);
-          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
-          JS
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: validation-evidence
-          path: |
-            .release-work/*.json
-            .release-work/assets/release-evidence.json
-          include-hidden-files: true
-          if-no-files-found: error
   publish:
-    needs: validate
-    if: inputs.publish
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: npm-production
     permissions:
       contents: read
-      actions: read
       id-token: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22.15.0'
-      - name: Install publishing tools without lifecycle scripts
-        run: |
-          npm install --global npm@11.21.0 --ignore-scripts --registry=https://registry.npmjs.org/
-          npm ci --prefix scripts/npm-release --omit=dev --ignore-scripts --registry=https://registry.npmjs.org/
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
-        with:
-          name: validation-evidence
-          path: .release-work/approved
-      - name: Recheck and publish exact approved tarballs
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_ID: ${{ inputs.release_id }}
-        run: |
-          node scripts/npm-release/release.mjs download "$RELEASE_ID" .release-work/assets
-          node scripts/npm-release/release.mjs publish .release-work/assets/manifest.json .release-work/assets .release-work/approved/plan.json .release-work/publish.json
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: publication-evidence
-          path: .release-work/*.json
-          include-hidden-files: true
-          if-no-files-found: warn
-  postcheck:
-    needs: publish
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: '22.15.0'
-      - name: Verify public consumer
-        env:
-          GH_TOKEN: ${{ github.token }}
-          RELEASE_ID: ${{ inputs.release_id }}
+      - name: Install publishing tools
         run: |
           npm install --global npm@11.21.0 --ignore-scripts --registry=https://registry.npmjs.org/
           npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
-          scripts/npm-release/node_modules/.bin/playwright install --with-deps chromium
-          node scripts/npm-release/release.mjs download "$RELEASE_ID" .release-work/assets
-          node scripts/npm-release/consumer.mjs .release-work/assets/manifest.json .release-work/assets .release-work/public-consumer.json public
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always()
-        with:
-          name: public-consumer-evidence
-          path: .release-work/*.json
-          include-hidden-files: true
-          if-no-files-found: warn
+      - name: Publish existing Jenkins tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+          CHECKSUMS_SHA256: ${{ inputs.checksums_sha256 }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/npm-release/release.mjs run "$RELEASE_TAG" "$DIST_TAG" "$CHECKSUMS_SHA256" "$DRY_RUN"
