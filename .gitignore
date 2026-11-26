@@ -6,3 +6,5 @@ node_modules
 dist
 temp
 build
+# Npm release artifacts and local verification output
+.release-work/

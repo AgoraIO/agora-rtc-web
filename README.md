@@ -34,3 +34,8 @@ Please follow the documentation at [api-ref.agora.io](https://api-ref.agora.io/e
 ## Changelogs
 
 Please check the changelogs at [Release Notes](https://docs.agora.io/en/video-calling/overview/release-notes?platform=web).
+
+
+## npm release
+
+See [Web SDK npm 发布操作手册](docs/npm-release/README.md) for Jenkins artifact collection, GitHub OIDC setup, publication and recovery.
