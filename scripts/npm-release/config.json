@@ -1,0 +1,7 @@
+{
+  "repository": "AgoraIO/agora-rtc-web",
+  "registry": "https://registry.npmjs.org/",
+  "main": "agora-rtc-sdk-ng",
+  "distTags": ["latest", "hotfix", "special"],
+  "packages": ["agora-rtc-sdk-ng", "@agora-js/shared", "@agora-js/report", "@agora-js/media", "@agora-js/protocol"]
+}

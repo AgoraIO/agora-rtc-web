@@ -1,0 +1,7 @@
+{
+  "name": "websdk-npm-release-tools",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "dependencies": { "semver": "7.8.6", "tar": "7.5.23" }
+}

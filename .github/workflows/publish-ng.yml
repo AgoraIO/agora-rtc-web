@@ -1,0 +1,84 @@
+name: Publish Web SDK to npm
+run-name: Web SDK ${{ inputs.release_tag }} → ${{ inputs.dist_tag }} (${{ inputs.dry_run && 'dry run' || 'publish' }})
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: GitHub Release containing the QA-accepted Jenkins tgz files
+        required: true
+        type: string
+      dist_tag:
+        description: npm distribution tag
+        type: choice
+        options: [latest, hotfix, special]
+        default: special
+      checksums_sha256:
+        description: SHA256SUMS file SHA256 (filled automatically by the start command)
+        required: true
+        type: string
+      dry_run:
+        description: Check artifacts and npm state without publishing (does not test OIDC publish)
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: websdk-npm-publish
+  cancel-in-progress: false
+jobs:
+  preview:
+    name: Review release artifacts
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.review.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.15.0'
+      - name: Install review tools
+        run: npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
+      - name: Review packages before approval
+        id: review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+          CHECKSUMS_SHA256: ${{ inputs.checksums_sha256 }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/npm-release/release.mjs review "$RELEASE_TAG" "$DIST_TAG" "$CHECKSUMS_SHA256" "$DRY_RUN"
+  publish:
+    name: ${{ inputs.dry_run && 'Dry run' || 'Publish' }} ${{ needs.preview.outputs.version }} → ${{ inputs.dist_tag }} (${{ inputs.release_tag }})
+    needs: preview
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    environment:
+      name: npm-production
+      url: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22.15.0'
+      - name: Install publishing tools
+        run: |
+          npm install --global npm@11.21.0 --ignore-scripts --registry=https://registry.npmjs.org/
+          npm ci --prefix scripts/npm-release --ignore-scripts --registry=https://registry.npmjs.org/
+      - name: Publish existing Jenkins tarballs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.release_tag }}
+          DIST_TAG: ${{ inputs.dist_tag }}
+          CHECKSUMS_SHA256: ${{ inputs.checksums_sha256 }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/npm-release/release.mjs run "$RELEASE_TAG" "$DIST_TAG" "$CHECKSUMS_SHA256" "$DRY_RUN"
